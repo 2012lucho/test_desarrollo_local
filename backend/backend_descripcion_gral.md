@@ -17,6 +17,7 @@ Las configuraciones del .env deben ser por el momento:
 - DB_USER: usuario de la base de datos
 - DB_PASS: contraseña de la base de datos
 - DB_PORT: puerto de la base de datos
+- CORS_ORIGINS: orígenes permitidos para CORS, ej. http://localhost:5173,http://localhost:5174
 
 # WebSocket
 - Se usa Socket.IO sobre el servidor Express en `src/index.js`.
