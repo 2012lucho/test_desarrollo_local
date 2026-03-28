@@ -7,6 +7,7 @@
 
 # Acceso a base de datos
 - Uso de Knex para conexion a base de datos mariadb local
+- Detalle de estructura en: [text](src/db.md)
 
 # configuraciones
 - En archivos .env se debe crear archivo .env.dev para mantener a modo de ejemplo
