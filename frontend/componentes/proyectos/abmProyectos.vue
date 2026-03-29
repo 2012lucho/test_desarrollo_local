@@ -6,29 +6,9 @@
     </div>
     <div class="card-body">
 
-      <form v-if="mostrarFormulario" @submit.prevent="guardar" class="mb-3 border rounded p-3 bg-light">
-        <h6 class="mb-3">{{ editandoId ? 'Editar Proyecto' : 'Nuevo Proyecto' }}</h6>
-        <div class="mb-2">
-          <label class="form-label">Nombre</label>
-          <input v-model="form.nombre" type="text" class="form-control" maxlength="50" required />
-        </div>
-        <div class="mb-2">
-          <label class="form-label">Descripción</label>
-          <input v-model="form.descripcion" type="text" class="form-control" maxlength="255" required />
-        </div>
-        <div v-if="mensajeError" class="alert alert-danger py-1 mb-2">{{ mensajeError }}</div>
-        <div class="d-flex gap-2">
-          <button type="submit" class="btn btn-sm btn-success" :disabled="cargando">
-            {{ cargando ? 'Guardando...' : 'Guardar' }}
-          </button>
-          <button type="button" class="btn btn-sm btn-secondary" @click="cerrarFormulario">Cancelar</button>
-        </div>
-      </form>
+      <div v-if="mensajeError" class="alert alert-danger py-1 mb-2">{{ mensajeError }}</div>
 
-      <div v-if="mensajeError && !mostrarFormulario" class="alert alert-danger py-1">{{ mensajeError }}</div>
-
-      <div v-if="cargando && !proyectos.length" class="text-muted">Cargando...</div>
-      <table v-else class="table table-sm table-hover mb-0">
+      <table class="table table-sm table-hover mb-0">
         <thead>
           <tr>
             <th>ID</th>
@@ -62,14 +42,15 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
 import { io } from 'socket.io-client';
+import { useModal } from '../../composables/useModal.js';
+import FormularioProyectoHeader from './FormularioProyectoHeader.vue';
+import FormularioProyectoBody from './FormularioProyectoBody.vue';
+import FormularioProyectoFooter from './FormularioProyectoFooter.vue';
 
 const socket = io(import.meta.env.VITE_API_URL);
+const { mostrarModal } = useModal();
 
 const proyectos = ref([]);
-const mostrarFormulario = ref(false);
-const editandoId = ref(null);
-const form = ref({ nombre: '', descripcion: '' });
-const cargando = ref(false);
 const mensajeError = ref('');
 
 function cargarLista() {
@@ -83,45 +64,51 @@ function cargarLista() {
 }
 
 function abrirFormulario(proyecto) {
-  mensajeError.value = '';
-  if (proyecto) {
-    editandoId.value = proyecto.id;
-    form.value = { nombre: proyecto.nombre, descripcion: proyecto.descripcion };
-  } else {
-    editandoId.value = null;
-    form.value = { nombre: '', descripcion: '' };
-  }
-  mostrarFormulario.value = true;
-}
+  const form = ref({ nombre: proyecto?.nombre ?? '', descripcion: proyecto?.descripcion ?? '' });
+  const editandoId = ref(proyecto?.id ?? null);
+  const cargandoForm = ref(false);
+  const mensajeErrorForm = ref('');
 
-function cerrarFormulario() {
-  mostrarFormulario.value = false;
-  editandoId.value = null;
-  form.value = { nombre: '', descripcion: '' };
-  mensajeError.value = '';
-}
+  const cerrar = mostrarModal({
+    header: FormularioProyectoHeader,
+    body: FormularioProyectoBody,
+    footer: FormularioProyectoFooter,
+    headerProps: { editandoId },
+    bodyProps: { form, mensajeError: mensajeErrorForm },
+    footerProps: {
+      cargando: cargandoForm,
+      onGuardar: guardar,
+      onCerrar: () => cerrar(),
+    },
+  });
 
-function guardar() {
-  mensajeError.value = '';
-  cargando.value = true;
-  if (editandoId.value) {
-    socket.emit('proyectos:update', { id: editandoId.value, ...form.value }, (resp) => {
-      cargando.value = false;
-      if (resp.ok) {
-        cerrarFormulario();
-      } else {
-        mensajeError.value = resp.error || 'Error al actualizar proyecto';
-      }
-    });
-  } else {
-    socket.emit('proyectos:create', { ...form.value }, (resp) => {
-      cargando.value = false;
-      if (resp.ok) {
-        cerrarFormulario();
-      } else {
-        mensajeError.value = resp.error || 'Error al crear proyecto';
-      }
-    });
+  function guardar() {
+    mensajeErrorForm.value = '';
+    const { nombre, descripcion } = form.value;
+    if (!nombre || !descripcion) {
+      mensajeErrorForm.value = 'Nombre y descripción son requeridos';
+      return;
+    }
+    cargandoForm.value = true;
+    if (editandoId.value) {
+      socket.emit('proyectos:update', { id: editandoId.value, nombre, descripcion }, (resp) => {
+        cargandoForm.value = false;
+        if (resp.ok) {
+          cerrar();
+        } else {
+          mensajeErrorForm.value = resp.error || 'Error al actualizar proyecto';
+        }
+      });
+    } else {
+      socket.emit('proyectos:create', { nombre, descripcion }, (resp) => {
+        cargandoForm.value = false;
+        if (resp.ok) {
+          cerrar();
+        } else {
+          mensajeErrorForm.value = resp.error || 'Error al crear proyecto';
+        }
+      });
+    }
   }
 }
 

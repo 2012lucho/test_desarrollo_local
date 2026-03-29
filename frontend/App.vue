@@ -9,10 +9,12 @@
       </div>
     </div>
   </div>
+  <GestorModals />
 </template>
 
 <script setup>
 import BarraLateralIzquierda from './componentes/layout/BarraLateralIzquierda.vue';
 import ZonaOperaciones from './componentes/layout/ZonaOperaciones.vue';
+import GestorModals from './componentes/layout/GestorModals.vue';
 </script>
 

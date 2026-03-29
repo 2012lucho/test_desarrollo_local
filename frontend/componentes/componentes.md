@@ -14,3 +14,6 @@ Definida en [BarraLateralIzquierda.md](layout/BarraLateralIzquierda.md)
 
 # Zona de Operaciones
 Definida en [ZonaOperaciones.md](layout/ZonaOperaciones.md)
+
+# Gestor de Modals
+Definida en [GestorModals.md](layout/GestorModals.md)
