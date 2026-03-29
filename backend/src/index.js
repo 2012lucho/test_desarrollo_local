@@ -8,6 +8,7 @@ dotenv.config({ path: '.env.dev' });
 
 const app = require('./app');
 const proyectosWebsocket = require('./websocket/proyectos');
+const ollamaWebsocket = require('./websocket/ollama');
 const port = process.env.PUERTO || 3000;
 
 const server = http.createServer(app);
@@ -39,6 +40,7 @@ io.on('connection', (socket) => {
   });
 
   proyectosWebsocket(socket, io);
+  ollamaWebsocket(socket);
 
   socket.on('disconnect', (reason) => {
     console.log(`Socket desconectado: ${socket.id} motivo: ${reason}`);

@@ -4,3 +4,4 @@ En directorio [websocket](./websocket) deben definirse todos los archivos relaci
 
 # Entidades
 - [proyectos](websocket/proyectos.md)
+- [ollama](websocket/ollama.md)

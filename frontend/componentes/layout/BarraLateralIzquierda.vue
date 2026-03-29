@@ -4,6 +4,7 @@
     <nav class="nav flex-column">
       <router-link class="nav-link" to="/" active-class="active" exact-active-class="active">Inicio</router-link>
       <router-link class="nav-link" to="/proyectos" active-class="active">Proyectos</router-link>
+      <router-link class="nav-link" to="/ollama" active-class="active">Ollama</router-link>
       <a class="nav-link" href="#">Configuración</a>
       <a class="nav-link" href="#">Documentación</a>
     </nav>

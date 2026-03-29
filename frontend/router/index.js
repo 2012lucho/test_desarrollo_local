@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 import AbmProyectos from '../componentes/proyectos/abmProyectos.vue';
+import AbmOllama from '../componentes/ollama/abmOllama.vue';
 
 const routes = [
   {
@@ -13,6 +14,11 @@ const routes = [
     path: '/proyectos',
     name: 'Proyectos',
     component: AbmProyectos,
+  },
+  {
+    path: '/ollama',
+    name: 'Ollama',
+    component: AbmOllama,
   },
 ];
 
