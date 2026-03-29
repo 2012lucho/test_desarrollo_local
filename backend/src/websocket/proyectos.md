@@ -1,33 +1,36 @@
-A partir de definicion de tabla (ver [db.md](db.md)) se debe definir nuevos metodos para CRUD de proyectos.
+# Manejador WebSocket para `proyectos`
 
-## api de eventos para `proyectos`
+Implementado en `backend/src/websocket/proyectos.js`.
+Inyectado en `backend/src/index.js` dentro de `io.on('connection')`.
 
-Eventos cliente -> servidor (Socket.IO):
+## Eventos entrantes (cliente → servidor)
 
-- `proyectos:list` (sin payload)
-- `proyectos:get` { id }
-- `proyectos:create` { nombre, descripcion }
-- `proyectos:update` { id, nombre?, descripcion? }
-- `proyectos:delete` { id }
+| Evento | Payload | Descripción |
+|---|---|---|
+| `proyectos:list` | (sin payload) | Devuelve todos los proyectos ordenados por id asc |
+| `proyectos:get` | `{ id }` | Devuelve un proyecto por id |
+| `proyectos:create` | `{ nombre, descripcion }` | Crea un nuevo proyecto |
+| `proyectos:update` | `{ id, nombre?, descripcion? }` | Actualiza campos de un proyecto existente |
+| `proyectos:delete` | `{ id }` | Elimina un proyecto |
 
-Respuestas con callback ack:
+## Respuestas (callback ack)
 
-- `ok: true` / `ok: false` y `data` o `error`
+Todos los eventos responden mediante callback de acknowledgement:
 
-Eventos de notificación global (servidor -> cliente):
+```json
+{ "ok": true, "data": { ... } }
+{ "ok": false, "error": "mensaje" }
+```
 
-- `proyectos:changed` { action: 'created'|'updated'|'deleted', proyecto }
+## Eventos emitidos a todos los clientes (servidor → clientes)
 
-## implementación
+- `proyectos:changed` `{ action: "created"|"updated"|"deleted", proyecto }` — emitido tras toda operación de escritura exitosa.
 
-- `backend/src/websocket/proyectos.js` (manejador de eventos)
-- `backend/src/index.js` (inyección en `io.on('connection')`)
+## Base de datos
 
-## base de datos
-
-Tabla `proyectos` (ver `backend/migrations/20260328_create_proyectos_table.js`):
-- id integer pk autoincremental
-- nombre varchar(50) notnull
-- descripcion varchar(255) notnull
-- creado_el datetime notnull default now
-- actualizado_el datetime notnull default now
+Tabla `proyectos` via Knex (ver `backend/migrations/20260328_create_proyectos_table.js`):
+- `id` integer pk autoincremental
+- `nombre` varchar(50) notnull
+- `descripcion` varchar(255) notnull
+- `creado_el` datetime notnull default now
+- `actualizado_el` datetime notnull default now

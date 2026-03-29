@@ -24,3 +24,7 @@ Las configuraciones del .env deben ser por el momento:
 - TypeScript esta super megaprohibido
 - No se deben instalar librerias nuevas salvo las que se definan expresamente
 - En la medida de lo posible siempre se deben usar funciones vanilla
+- Se debe utilizar CompositionAPI
+
+# Componentes
+- Se definen en [componentes.md](componentes/componentes.md)
