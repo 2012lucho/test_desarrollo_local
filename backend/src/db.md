@@ -20,3 +20,12 @@
 - nombre varchar (100) notnull
 - creado_el datetime notnull (default now)
 - actualizado_el datetime notnull (default now)
+
+## componentes
+- id integer pk autoincremental
+- proyecto_id integer fk referencias proyectos(id) notnull
+- nombre varchar (100) notnull
+- descripcion varchar (255) notnull
+- config json notnull
+- creado_el datetime notnull (default now)
+- actualizado_el datetime notnull (default now)

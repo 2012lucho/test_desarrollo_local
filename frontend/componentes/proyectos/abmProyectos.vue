@@ -64,7 +64,7 @@ function cargarLista() {
 }
 
 function abrirFormulario(proyecto) {
-  const form = ref({ nombre: proyecto?.nombre ?? '', descripcion: proyecto?.descripcion ?? '', subproyectos: [] });
+  const form = ref({ nombre: proyecto?.nombre ?? '', descripcion: proyecto?.descripcion ?? '', subproyectos: [], componentes: [] });
   const editandoId = ref(proyecto?.id ?? null);
   const cargandoForm = ref(false);
   const mensajeErrorForm = ref('');
@@ -94,11 +94,31 @@ function abrirFormulario(proyecto) {
 
   function guardar() {
     mensajeErrorForm.value = '';
-    const { nombre, descripcion, subproyectos } = form.value;
+    const { nombre, descripcion, subproyectos, componentes } = form.value;
     if (!nombre || !descripcion) {
       mensajeErrorForm.value = 'Nombre y descripción son requeridos';
       return;
     }
+
+    let componentesPayload = [];
+    try {
+      componentesPayload = Array.isArray(componentes)
+        ? componentes
+            .map((item) => {
+              const nombreComp = String(item?.nombre ?? '').trim();
+              if (!nombreComp) return null;
+              const descripcionComp = String(item?.descripcion ?? '').trim();
+              const configText = String(item?.configText ?? '').trim();
+              const config = configText ? JSON.parse(configText) : {};
+              return { nombre: nombreComp, descripcion: descripcionComp, config };
+            })
+            .filter(Boolean)
+        : [];
+    } catch (error) {
+      mensajeErrorForm.value = 'El campo config de algún componente debe ser JSON válido';
+      return;
+    }
+
     cargandoForm.value = true;
     const payload = {
       nombre,
@@ -106,6 +126,7 @@ function abrirFormulario(proyecto) {
       subproyectos: Array.isArray(subproyectos)
         ? subproyectos.map((item) => String(item?.nombre ?? '').trim()).filter(Boolean)
         : [],
+      componentes: componentesPayload,
     };
     const cerrarForm = () => {
       if (typeof cerrar === 'function') {
@@ -142,6 +163,13 @@ function abrirFormulario(proyecto) {
           descripcion: resp.data.descripcion,
           subproyectos: Array.isArray(resp.data.subproyectos)
             ? resp.data.subproyectos.map((item) => ({ nombre: item.nombre }))
+            : [],
+          componentes: Array.isArray(resp.data.componentes)
+            ? resp.data.componentes.map((item) => ({
+                nombre: item.nombre,
+                descripcion: item.descripcion,
+                configText: item?.config ? JSON.stringify(item.config, null, 2) : '{}',
+              }))
             : [],
         };
         editandoId.value = resp.data.id;
