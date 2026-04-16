@@ -83,6 +83,7 @@ function abrirFormulario(proyecto) {
         onGuardar: guardar,
         onCerrar: () => cerrar && cerrar(),
       },
+      fullscreen: true,
     });
   };
 

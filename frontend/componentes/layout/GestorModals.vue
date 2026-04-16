@@ -10,7 +10,7 @@
         class="gestor-modal-wrapper"
         :style="{ zIndex: baseZ + index * 2 + 1 }"
       >
-        <div class="gestor-modal-dialog">
+        <div :class="['gestor-modal-dialog', { 'gestor-modal-dialog--fullscreen': modal.fullscreen }]">
           <div class="gestor-modal-header-bar">
             <component v-if="modal.header" :is="modal.header" v-bind="modal.headerProps" />
             <button
@@ -65,6 +65,14 @@ const { modals, cerrarModal } = useModal();
   box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
   pointer-events: all;
   overflow: hidden;
+}
+
+.gestor-modal-dialog--fullscreen {
+  width: 100vw;
+  height: 100vh;
+  max-width: 100vw;
+  max-height: 100vh;
+  border-radius: 0;
 }
 
 .gestor-modal-header-bar {

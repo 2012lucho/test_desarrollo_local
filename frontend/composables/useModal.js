@@ -9,7 +9,7 @@ function resolverComponente(comp) {
   return markRaw(raw);
 }
 
-function mostrarModal({ header, body, footer, headerProps, bodyProps, footerProps } = {}) {
+function mostrarModal({ header, body, footer, headerProps, bodyProps, footerProps, fullscreen = false } = {}) {
   const id = nextId++;
   modals.push({
     id,
@@ -19,6 +19,7 @@ function mostrarModal({ header, body, footer, headerProps, bodyProps, footerProp
     headerProps: headerProps || {},
     bodyProps: bodyProps || {},
     footerProps: footerProps || {},
+    fullscreen,
   });
   return () => cerrarModal(id);
 }
