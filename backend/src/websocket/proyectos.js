@@ -6,8 +6,8 @@ const db = require('../db');
  * Eventos entrantes (cliente -> servidor):
  * - proyectos:list
  * - proyectos:get { id }
- * - proyectos:create { nombre, descripcion }
- * - proyectos:update { id, nombre?, descripcion? }
+ * - proyectos:create { nombre, descripcion, subproyectos?: string[] }
+ * - proyectos:update { id, nombre?, descripcion?, subproyectos?: string[] }
  * - proyectos:delete { id }
  *
  * Respuestas por callback de ack o emisión general:
@@ -20,11 +20,14 @@ module.exports = (socket, io) => {
     if (typeof callback === 'function') {
       callback(payload);
     } else {
-      // fallback: emitir evento de respuesta si no hay callback
       if (payload.event) {
         socket.emit(payload.event, payload);
       }
     }
+  };
+
+  const cargarSubproyectos = async (proyectoId) => {
+    return await db('subproyectos').where({ proyecto_id: proyectoId }).orderBy('id', 'asc');
   };
 
   socket.on('proyectos:list', async (payload, callback) => {
@@ -48,7 +51,8 @@ module.exports = (socket, io) => {
       if (!proyecto) {
         return safeCallback(callback, { ok: false, error: 'Proyecto no encontrado', status: 404 });
       }
-      safeCallback(callback, { ok: true, data: proyecto });
+      const subproyectos = await cargarSubproyectos(id);
+      safeCallback(callback, { ok: true, data: { ...proyecto, subproyectos } });
     } catch (error) {
       console.error('proyectos:get error', error);
       safeCallback(callback, { ok: false, error: 'Error obteniendo proyecto' });
@@ -56,17 +60,29 @@ module.exports = (socket, io) => {
   });
 
   socket.on('proyectos:create', async (payload, callback) => {
-    const { nombre, descripcion } = payload || {};
+    const { nombre, descripcion, subproyectos } = payload || {};
     if (!nombre || !descripcion) {
       return safeCallback(callback, { ok: false, error: 'nombre y descripcion son requeridos' });
     }
 
     try {
       const [id] = await db('proyectos').insert({ nombre, descripcion });
+      if (Array.isArray(subproyectos) && subproyectos.length) {
+        const registros = subproyectos
+          .map((nombreSub) => ({ proyecto_id: id, nombre: String(nombreSub || '').trim() }))
+          .filter((item) => item.nombre);
+        if (registros.length) {
+          await db('subproyectos').insert(registros);
+        }
+      }
       const nuevoProyecto = await db('proyectos').where({ id }).first();
+      const nuevoProyectoCompleto = {
+        ...nuevoProyecto,
+        subproyectos: await cargarSubproyectos(id),
+      };
 
-      io.emit('proyectos:changed', { action: 'created', proyecto: nuevoProyecto });
-      safeCallback(callback, { ok: true, data: nuevoProyecto });
+      io.emit('proyectos:changed', { action: 'created', proyecto: nuevoProyectoCompleto });
+      safeCallback(callback, { ok: true, data: nuevoProyectoCompleto });
     } catch (error) {
       console.error('proyectos:create error', error);
       safeCallback(callback, { ok: false, error: 'Error creando proyecto' });
@@ -82,20 +98,38 @@ module.exports = (socket, io) => {
     const data = {};
     if (payload.nombre) data.nombre = payload.nombre;
     if (payload.descripcion) data.descripcion = payload.descripcion;
-    if (Object.keys(data).length === 0) {
+
+    if (Object.keys(data).length === 0 && !Array.isArray(payload.subproyectos)) {
       return safeCallback(callback, { ok: false, error: 'Se necesita al menos un campo para actualizar' });
     }
 
     data.actualizado_el = new Date();
 
     try {
-      const affected = await db('proyectos').where({ id }).update(data);
-      if (!affected) {
-        return safeCallback(callback, { ok: false, error: 'Proyecto no encontrado', status: 404 });
+      if (Object.keys(data).length > 0) {
+        const affected = await db('proyectos').where({ id }).update(data);
+        if (!affected) {
+          return safeCallback(callback, { ok: false, error: 'Proyecto no encontrado', status: 404 });
+        }
       }
+
+      if (Array.isArray(payload.subproyectos)) {
+        await db('subproyectos').where({ proyecto_id: id }).delete();
+        const registros = payload.subproyectos
+          .map((nombreSub) => ({ proyecto_id: id, nombre: String(nombreSub || '').trim() }))
+          .filter((item) => item.nombre);
+        if (registros.length) {
+          await db('subproyectos').insert(registros);
+        }
+      }
+
       const proyectoActualizado = await db('proyectos').where({ id }).first();
-      io.emit('proyectos:changed', { action: 'updated', proyecto: proyectoActualizado });
-      safeCallback(callback, { ok: true, data: proyectoActualizado });
+      const proyectoActualizadoCompleto = {
+        ...proyectoActualizado,
+        subproyectos: await cargarSubproyectos(id),
+      };
+      io.emit('proyectos:changed', { action: 'updated', proyecto: proyectoActualizadoCompleto });
+      safeCallback(callback, { ok: true, data: proyectoActualizadoCompleto });
     } catch (error) {
       console.error('proyectos:update error', error);
       safeCallback(callback, { ok: false, error: 'Error actualizando proyecto' });
@@ -113,6 +147,7 @@ module.exports = (socket, io) => {
       if (!proyecto) {
         return safeCallback(callback, { ok: false, error: 'Proyecto no encontrado', status: 404 });
       }
+      await db('subproyectos').where({ proyecto_id: id }).delete();
       await db('proyectos').where({ id }).delete();
 
       io.emit('proyectos:changed', { action: 'deleted', proyecto });

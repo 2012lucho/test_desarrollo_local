@@ -40,7 +40,7 @@ Al abrir el modal se crean refs locales por instancia (`form`, `editandoId`, `ca
 | Prop | Tipo | Destino |
 |---|---|---|
 | `editandoId` | `ref(Number\|null)` | Header |
-| `form` | `ref({ nombre, descripcion })` | Body |
+| `form` | `ref({ nombre, descripcion, subproyectos })` | Body |
 | `mensajeError` | `ref(String)` | Body |
 | `cargando` | `ref(Boolean)` | Footer |
 | `onGuardar` | `Function` | Footer |

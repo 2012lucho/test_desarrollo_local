@@ -64,51 +64,96 @@ function cargarLista() {
 }
 
 function abrirFormulario(proyecto) {
-  const form = ref({ nombre: proyecto?.nombre ?? '', descripcion: proyecto?.descripcion ?? '' });
+  const form = ref({ nombre: proyecto?.nombre ?? '', descripcion: proyecto?.descripcion ?? '', subproyectos: [] });
   const editandoId = ref(proyecto?.id ?? null);
   const cargandoForm = ref(false);
   const mensajeErrorForm = ref('');
 
-  const cerrar = mostrarModal({
-    header: FormularioProyectoHeader,
-    body: FormularioProyectoBody,
-    footer: FormularioProyectoFooter,
-    headerProps: { editandoId },
-    bodyProps: { form, mensajeError: mensajeErrorForm },
-    footerProps: {
-      cargando: cargandoForm,
-      onGuardar: guardar,
-      onCerrar: () => cerrar(),
-    },
-  });
+  let cerrar = null;
+
+  const abrirModal = () => {
+    cerrar = mostrarModal({
+      header: FormularioProyectoHeader,
+      body: FormularioProyectoBody,
+      footer: FormularioProyectoFooter,
+      headerProps: { editandoId },
+      bodyProps: { form, mensajeError: mensajeErrorForm },
+      footerProps: {
+        cargando: cargandoForm,
+        onGuardar: guardar,
+        onCerrar: () => cerrar && cerrar(),
+      },
+    });
+  };
+
+  function inicializarSubproyectos() {
+    if (!Array.isArray(form.value.subproyectos)) {
+      form.value.subproyectos = [];
+    }
+  }
 
   function guardar() {
     mensajeErrorForm.value = '';
-    const { nombre, descripcion } = form.value;
+    const { nombre, descripcion, subproyectos } = form.value;
     if (!nombre || !descripcion) {
       mensajeErrorForm.value = 'Nombre y descripción son requeridos';
       return;
     }
     cargandoForm.value = true;
+    const payload = {
+      nombre,
+      descripcion,
+      subproyectos: Array.isArray(subproyectos)
+        ? subproyectos.map((item) => String(item?.nombre ?? '').trim()).filter(Boolean)
+        : [],
+    };
+    const cerrarForm = () => {
+      if (typeof cerrar === 'function') {
+        cerrar();
+      }
+    };
+
     if (editandoId.value) {
-      socket.emit('proyectos:update', { id: editandoId.value, nombre, descripcion }, (resp) => {
+      socket.emit('proyectos:update', { id: editandoId.value, ...payload }, (resp) => {
         cargandoForm.value = false;
         if (resp.ok) {
-          cerrar();
+          cerrarForm();
         } else {
           mensajeErrorForm.value = resp.error || 'Error al actualizar proyecto';
         }
       });
     } else {
-      socket.emit('proyectos:create', { nombre, descripcion }, (resp) => {
+      socket.emit('proyectos:create', payload, (resp) => {
         cargandoForm.value = false;
         if (resp.ok) {
-          cerrar();
+          cerrarForm();
         } else {
           mensajeErrorForm.value = resp.error || 'Error al crear proyecto';
         }
       });
     }
+  }
+
+  if (proyecto?.id) {
+    socket.emit('proyectos:get', { id: proyecto.id }, (resp) => {
+      if (resp.ok) {
+        form.value = {
+          nombre: resp.data.nombre,
+          descripcion: resp.data.descripcion,
+          subproyectos: Array.isArray(resp.data.subproyectos)
+            ? resp.data.subproyectos.map((item) => ({ nombre: item.nombre }))
+            : [],
+        };
+        editandoId.value = resp.data.id;
+        inicializarSubproyectos();
+        abrirModal();
+      } else {
+        mensajeError.value = resp.error || 'Error al cargar datos del proyecto';
+      }
+    });
+  } else {
+    inicializarSubproyectos();
+    abrirModal();
   }
 }
 
