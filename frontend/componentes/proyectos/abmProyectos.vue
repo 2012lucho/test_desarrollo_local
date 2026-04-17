@@ -76,7 +76,7 @@ function abrirFormulario(proyecto) {
       header: FormularioProyectoHeader,
       body: FormularioProyectoBody,
       footer: FormularioProyectoFooter,
-      headerProps: { editandoId },
+      headerProps: { editandoId, form },
       bodyProps: { form, mensajeError: mensajeErrorForm },
       footerProps: {
         cargando: cargandoForm,
