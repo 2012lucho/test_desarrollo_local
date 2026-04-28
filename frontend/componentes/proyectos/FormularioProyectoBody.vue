@@ -16,13 +16,16 @@
         <div class="mb-3">
           <label class="form-label">Subproyectos</label>
           <ul class="list-group mb-2">
-            <li v-for="(sub, index) in subproyectos" :key="index" class="list-group-item d-flex gap-2 align-items-start">
-              <input v-model="sub.nombre" type="text" class="form-control" placeholder="Nombre del subproyecto" maxlength="100" />
-              <button type="button" class="btn btn-sm btn-outline-danger" @click="quitarSubproyecto(index)">Quitar</button>
+            <li v-for="(sub, index) in subproyectos" :key="index" class="list-group-item d-flex justify-content-between align-items-center">
+              <span class="flex-grow-1">{{ sub.nombre || 'Subproyecto sin nombre' }}</span>
+              <div class="btn-group">
+                <button type="button" class="btn btn-sm btn-outline-primary" @click="abrirDetalleSubproyecto(sub, index)">Ver detalles</button>
+                <button type="button" class="btn btn-sm btn-outline-danger" @click="quitarSubproyecto(index)">Eliminar</button>
+              </div>
             </li>
             <li v-if="!subproyectos.length" class="list-group-item text-muted">Sin subproyectos aún.</li>
           </ul>
-          <button type="button" class="btn btn-sm btn-outline-primary" @click="agregarSubproyecto">Agregar subproyecto</button>
+          <button type="button" class="btn btn-sm btn-outline-primary" @click="abrirDetalleSubproyecto()">Agregar subproyecto</button>
         </div>
       </div>
 
@@ -56,6 +59,9 @@ import { useModal } from '../../composables/useModal.js';
 import FormularioComponenteHeader from './FormularioComponenteHeader.vue';
 import FormularioComponenteBody from './FormularioComponenteBody.vue';
 import FormularioComponenteFooter from './FormularioComponenteFooter.vue';
+import FormularioSubproyectoHeader from './FormularioSubproyectoHeader.vue';
+import FormularioSubproyectoBody from './FormularioSubproyectoBody.vue';
+import FormularioSubproyectoFooter from './FormularioSubproyectoFooter.vue';
 
 const props = defineProps(['form', 'mensajeError']);
 const { mostrarModal } = useModal();
@@ -100,8 +106,45 @@ const componentes = computed({
   },
 });
 
-function agregarSubproyecto() {
-  subproyectos.value.push({ nombre: '' });
+function abrirDetalleSubproyecto(subproyecto = null, index = null) {
+  const subproyectoTemp = ref(
+    subproyecto
+      ? { nombre: subproyecto.nombre ?? '' }
+      : { nombre: '' }
+  );
+  const mensajeErrorSubproyecto = ref('');
+  let cerrarDetalle = null;
+
+  function guardarSubproyecto() {
+    mensajeErrorSubproyecto.value = '';
+    const nombreTrim = String(subproyectoTemp.value.nombre ?? '').trim();
+
+    if (!nombreTrim) {
+      mensajeErrorSubproyecto.value = 'Nombre del subproyecto es requerido';
+      return;
+    }
+
+    const subproyectoGuardado = { nombre: nombreTrim };
+
+    if (index !== null && index !== undefined && index >= 0) {
+      subproyectos.value[index] = subproyectoGuardado;
+    } else {
+      subproyectos.value.push(subproyectoGuardado);
+    }
+
+    if (typeof cerrarDetalle === 'function') {
+      cerrarDetalle();
+    }
+  }
+
+  cerrarDetalle = mostrarModal({
+    header: FormularioSubproyectoHeader,
+    body: FormularioSubproyectoBody,
+    footer: FormularioSubproyectoFooter,
+    headerProps: { subproyecto: subproyectoTemp },
+    bodyProps: { subproyecto: subproyectoTemp, mensajeError: mensajeErrorSubproyecto },
+    footerProps: { onGuardar: guardarSubproyecto, onCerrar: () => cerrarDetalle && cerrarDetalle() },
+  });
 }
 
 function quitarSubproyecto(index) {

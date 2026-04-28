@@ -29,3 +29,9 @@
 - config json notnull
 - creado_el datetime notnull (default now)
 - actualizado_el datetime notnull (default now)
+
+## tecnologias
+- id integer pk autoincremental
+- nombre varchar (100) notnull
+- creado_el datetime notnull (default now)
+- actualizado_el datetime notnull (default now)
