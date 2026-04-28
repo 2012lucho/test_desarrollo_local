@@ -39,12 +39,13 @@ module.exports = (socket, io) => {
 
   socket.on('tecnologias:create', async (payload, callback) => {
     const nombre = String(payload?.nombre || '').trim();
+    const color = String(payload?.color || '').trim() || null;
     if (!nombre) {
       return safeCallback(callback, { ok: false, error: 'El nombre es requerido' });
     }
 
     try {
-      const [id] = await db('tecnologias').insert({ nombre });
+      const [id] = await db('tecnologias').insert({ nombre, color });
       const tecnologia = await db('tecnologias').where({ id }).first();
       io.emit('tecnologias:changed', { action: 'created', tecnologia });
       safeCallback(callback, { ok: true, data: tecnologia });
@@ -57,6 +58,7 @@ module.exports = (socket, io) => {
   socket.on('tecnologias:update', async (payload, callback) => {
     const id = Number(payload?.id);
     const nombre = String(payload?.nombre || '').trim();
+    const color = String(payload?.color || '').trim() || null;
 
     if (!id || id <= 0) {
       return safeCallback(callback, { ok: false, error: 'Id inválido para actualizar tecnología' });
@@ -66,7 +68,7 @@ module.exports = (socket, io) => {
     }
 
     try {
-      const affected = await db('tecnologias').where({ id }).update({ nombre, actualizado_el: new Date() });
+      const affected = await db('tecnologias').where({ id }).update({ nombre, color, actualizado_el: new Date() });
       if (!affected) {
         return safeCallback(callback, { ok: false, error: 'Tecnología no encontrada', status: 404 });
       }

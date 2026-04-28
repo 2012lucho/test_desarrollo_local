@@ -12,6 +12,7 @@
           <tr>
             <th>ID</th>
             <th>Nombre</th>
+            <th>Color</th>
             <th></th>
           </tr>
         </thead>
@@ -22,6 +23,13 @@
           <tr v-for="tecnologia in tecnologias" :key="tecnologia.id">
             <td>{{ tecnologia.id }}</td>
             <td>{{ tecnologia.nombre }}</td>
+            <td>
+              <span v-if="tecnologia.color" class="badge text-bg-secondary">
+                <span class="me-1" :style="{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: tecnologia.color }"></span>
+                {{ tecnologia.color }}
+              </span>
+              <span v-else class="text-muted">-</span>
+            </td>
             <td class="text-end">
               <button class="btn btn-sm btn-outline-primary me-1" @click="abrirFormulario(tecnologia)">Editar</button>
               <button class="btn btn-sm btn-outline-danger" @click="eliminar(tecnologia.id)">Eliminar</button>
@@ -58,7 +66,10 @@ function cargarLista() {
 }
 
 function abrirFormulario(tecnologia) {
-  const form = ref({ nombre: tecnologia?.nombre ?? '' });
+  const form = ref({
+    nombre: tecnologia?.nombre ?? '',
+    color: tecnologia?.color ?? '#000000',
+  });
   const editandoId = ref(tecnologia?.id ?? null);
   const mensajeErrorForm = ref('');
   const cargandoForm = ref(false);
@@ -89,7 +100,10 @@ function abrirFormulario(tecnologia) {
     }
 
     cargandoForm.value = true;
-    const payload = { nombre };
+    const payload = {
+      nombre,
+      color: String(form.value.color || '').trim() || null,
+    };
 
     const acción = editandoId.value ? 'tecnologias:update' : 'tecnologias:create';
     if (editandoId.value) payload.id = editandoId.value;

@@ -33,5 +33,6 @@
 ## tecnologias
 - id integer pk autoincremental
 - nombre varchar (100) notnull
+- color varchar (30) null
 - creado_el datetime notnull (default now)
 - actualizado_el datetime notnull (default now)

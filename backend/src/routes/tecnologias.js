@@ -33,12 +33,13 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', async (req, res) => {
   const nombre = String(req.body?.nombre || '').trim();
+  const color = String(req.body?.color || '').trim() || null;
   if (!nombre) {
     return res.status(400).json({ ok: false, error: 'El nombre es requerido' });
   }
 
   try {
-    const [id] = await db('tecnologias').insert({ nombre });
+    const [id] = await db('tecnologias').insert({ nombre, color });
     const tecnologia = await db('tecnologias').where({ id }).first();
     res.status(201).json({ ok: true, data: tecnologia });
   } catch (error) {
@@ -50,6 +51,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   const id = Number(req.params.id);
   const nombre = String(req.body?.nombre || '').trim();
+  const color = String(req.body?.color || '').trim() || null;
 
   if (!id || id <= 0) {
     return res.status(400).json({ ok: false, error: 'Id de tecnología inválido' });
@@ -59,7 +61,7 @@ router.put('/:id', async (req, res) => {
   }
 
   try {
-    const affected = await db('tecnologias').where({ id }).update({ nombre, actualizado_el: new Date() });
+    const affected = await db('tecnologias').where({ id }).update({ nombre, color, actualizado_el: new Date() });
     if (!affected) {
       return res.status(404).json({ ok: false, error: 'Tecnología no encontrada' });
     }
