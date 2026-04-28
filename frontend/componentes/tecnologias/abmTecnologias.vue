@@ -37,6 +37,9 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { io } from 'socket.io-client';
 import { useModal } from '../../composables/useModal.js';
+import FormularioTecnologiaHeader from './FormularioTecnologiaHeader.vue';
+import FormularioTecnologiaBody from './FormularioTecnologiaBody.vue';
+import FormularioTecnologiaFooter from './FormularioTecnologiaFooter.vue';
 
 const socket = io(import.meta.env.VITE_API_URL);
 const { mostrarModal } = useModal();
@@ -60,36 +63,6 @@ function abrirFormulario(tecnologia) {
   const mensajeErrorForm = ref('');
   const cargandoForm = ref(false);
   let cerrar = null;
-
-  const FormularioTecnologiaHeader = {
-    props: ['editandoId'],
-    template: `<div><strong>{{ editandoId ? 'Editar tecnología' : 'Crear tecnología' }}</strong></div>`,
-  };
-
-  const FormularioTecnologiaBody = {
-    props: ['form', 'mensajeError'],
-    template: `
-      <div>
-        <div v-if="mensajeError" class="alert alert-danger py-1 mb-3">{{ mensajeError }}</div>
-        <div class="mb-3">
-          <label class="form-label">Nombre</label>
-          <input v-model="form.nombre" type="text" class="form-control" placeholder="Nombre de la tecnología" />
-        </div>
-      </div>
-    `,
-  };
-
-  const FormularioTecnologiaFooter = {
-    props: ['cargando', 'onGuardar', 'onCerrar'],
-    template: `
-      <div class="d-flex justify-content-end gap-2">
-        <button type="button" class="btn btn-secondary" @click="onCerrar">Cancelar</button>
-        <button type="button" class="btn btn-primary" :disabled="cargando" @click="onGuardar">
-          {{ cargando ? 'Guardando...' : 'Guardar' }}
-        </button>
-      </div>
-    `,
-  };
 
   const abrirModal = () => {
     cerrar = mostrarModal({
