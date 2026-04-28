@@ -6,8 +6,8 @@ const db = require('../db');
  * Eventos entrantes (cliente -> servidor):
  * - proyectos:list
  * - proyectos:get { id }
- * - proyectos:create { nombre, descripcion, subproyectos?: string[], componentes?: Array<{ nombre, descripcion?, config?: object | string }> }
- * - proyectos:update { id, nombre?, descripcion?, subproyectos?: string[], componentes?: Array<{ nombre, descripcion?, config?: object | string }> }
+ * - proyectos:create { nombre, descripcion, subproyectos?: Array<{ id?, nombre, tecnologias?: number[] }>, componentes?: Array<{ nombre, descripcion?, config?: object | string, subproyectos?: number[] }> }
+ * - proyectos:update { id, nombre?, descripcion?, subproyectos?: Array<{ id?, nombre, tecnologias?: number[] }>, componentes?: Array<{ nombre, descripcion?, config?: object | string, subproyectos?: number[] }> }
  * - proyectos:delete { id }
  *
  * Respuestas por callback de ack o emisión general:
@@ -26,8 +26,30 @@ module.exports = (socket, io) => {
     }
   };
 
+  const normalizeKey = (key) => {
+    if (key === null || key === undefined) return null;
+    return String(key);
+  };
+
   const cargarComponentes = async (proyectoId) => {
-    return await db('componentes').where({ proyecto_id: proyectoId }).orderBy('id', 'asc');
+    const componentes = await db('componentes').where({ proyecto_id: proyectoId }).orderBy('id', 'asc');
+    if (!componentes.length) return [];
+
+    const componenteIds = componentes.map((item) => item.id);
+    const relaciones = await db('subproyecto_componentes')
+      .whereIn('componente_id', componenteIds)
+      .select('componente_id', 'subproyecto_id');
+
+    const subproyectosPorComponente = relaciones.reduce((acc, item) => {
+      if (!acc[item.componente_id]) acc[item.componente_id] = [];
+      acc[item.componente_id].push(item.subproyecto_id);
+      return acc;
+    }, {});
+
+    return componentes.map((item) => ({
+      ...item,
+      subproyectos: subproyectosPorComponente[item.id] || [],
+    }));
   };
 
   const prepararRegistrosComponentes = (componentes, proyectoId) => {
@@ -56,14 +78,63 @@ module.exports = (socket, io) => {
           throw new Error('El campo config de un componente debe ser un objeto JSON');
         }
 
+        const subproyectos = Array.isArray(item.subproyectos)
+          ? Array.from(new Set(item.subproyectos.map((id) => normalizeKey(id)).filter((id) => id !== null)))
+          : [];
+
         return {
           proyecto_id: proyectoId,
           nombre,
           descripcion,
           config,
+          subproyectos,
         };
       })
       .filter(Boolean);
+  };
+
+  const insertarSubproyectos = async (proyectoId, subproyectos) => {
+    const mapping = {};
+    if (!Array.isArray(subproyectos)) return mapping;
+
+    for (const item of subproyectos) {
+      const registro = prepararSubproyectoData(item);
+      if (!registro) continue;
+      const originalKey = normalizeKey(item?.id ?? item?.tempId);
+      const [subproyectoId] = await db('subproyectos').insert({ proyecto_id: proyectoId, nombre: registro.nombre });
+      if (registro.tecnologias.length) {
+        const relaciones = registro.tecnologias.map((tecnologia_id) => ({
+          subproyecto_id: subproyectoId,
+          tecnologia_id,
+        }));
+        await db('subproyecto_tecnologias').insert(relaciones);
+      }
+      if (originalKey !== null) {
+        mapping[originalKey] = subproyectoId;
+      }
+    }
+
+    return mapping;
+  };
+
+  const insertarComponentes = async (componentes, subproyectoIdMap) => {
+    if (!Array.isArray(componentes)) return;
+
+    for (const item of componentes) {
+      const { subproyectos, ...data } = item;
+      const [componenteId] = await db('componentes').insert(data);
+      const relaciones = (Array.isArray(subproyectos) ? subproyectos : [])
+        .map((subId) => {
+          const key = normalizeKey(subId);
+          const subproyecto_id = subproyectoIdMap ? subproyectoIdMap[key] : Number(subId);
+          if (!subproyecto_id || Number.isNaN(subproyecto_id)) return null;
+          return { componente_id: componenteId, subproyecto_id };
+        })
+        .filter(Boolean);
+      if (relaciones.length) {
+        await db('subproyecto_componentes').insert(relaciones);
+      }
+    }
   };
 
   const prepararSubproyectoData = (item) => {
@@ -105,21 +176,6 @@ module.exports = (socket, io) => {
     }));
   };
 
-  const crearSubproyecto = async (proyectoId, subproyecto) => {
-    const registro = prepararSubproyectoData(subproyecto);
-    if (!registro) return null;
-
-    const [subproyectoId] = await db('subproyectos').insert({ proyecto_id: proyectoId, nombre: registro.nombre });
-    if (registro.tecnologias.length) {
-      const relaciones = registro.tecnologias.map((tecnologia_id) => ({
-        subproyecto_id: subproyectoId,
-        tecnologia_id,
-      }));
-      await db('subproyecto_tecnologias').insert(relaciones);
-    }
-    return subproyectoId;
-  };
-
   socket.on('proyectos:list', async (payload, callback) => {
     try {
       const proyectos = await db('proyectos').select('*').orderBy('id', 'asc');
@@ -159,16 +215,14 @@ module.exports = (socket, io) => {
     try {
       const [id] = await db('proyectos').insert({ nombre, descripcion });
 
-      if (Array.isArray(subproyectos) && subproyectos.length) {
-        for (const item of subproyectos) {
-          await crearSubproyecto(id, item);
-        }
-      }
+      const subproyectoIdMap = Array.isArray(subproyectos) && subproyectos.length
+        ? await insertarSubproyectos(id, subproyectos)
+        : null;
 
       if (Array.isArray(componentes)) {
         const registros = prepararRegistrosComponentes(componentes, id);
         if (registros.length) {
-          await db('componentes').insert(registros);
+          await insertarComponentes(registros, subproyectoIdMap);
         }
       }
 
@@ -211,18 +265,17 @@ module.exports = (socket, io) => {
         }
       }
 
+      let subproyectoIdMap = null;
       if (Array.isArray(payload.subproyectos)) {
         await db('subproyectos').where({ proyecto_id: id }).delete();
-        for (const item of payload.subproyectos) {
-          await crearSubproyecto(id, item);
-        }
+        subproyectoIdMap = await insertarSubproyectos(id, payload.subproyectos);
       }
 
       if (Array.isArray(payload.componentes)) {
         await db('componentes').where({ proyecto_id: id }).delete();
         const registros = prepararRegistrosComponentes(payload.componentes, id);
         if (registros.length) {
-          await db('componentes').insert(registros);
+          await insertarComponentes(registros, subproyectoIdMap);
         }
       }
 

@@ -36,3 +36,10 @@
 - color varchar (30) null
 - creado_el datetime notnull (default now)
 - actualizado_el datetime notnull (default now)
+
+## subproyecto_componentes
+- id integer pk autoincremental
+- componente_id integer fk referencias componentes(id) notnull
+- subproyecto_id integer fk referencias subproyectos(id) notnull
+- creado_el datetime notnull (default now)
+- unique (componente_id, subproyecto_id)

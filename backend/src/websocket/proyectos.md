@@ -9,8 +9,8 @@ Inyectado en `backend/src/index.js` dentro de `io.on('connection')`.
 |---|---|---|
 | `proyectos:list` | (sin payload) | Devuelve todos los proyectos ordenados por id asc |
 | `proyectos:get` | `{ id }` | Devuelve un proyecto por id, incluyendo sus subproyectos y sus componentes |
-| `proyectos:create` | `{ nombre, descripcion, subproyectos?: Array<{ nombre: string, tecnologias?: number[] }>, componentes?: Array<{ nombre, descripcion?, config?: object | string }> }` | Crea un nuevo proyecto con subproyectos, tecnologías relacionadas y componentes |
-| `proyectos:update` | `{ id, nombre?, descripcion?, subproyectos?: Array<{ nombre: string, tecnologias?: number[] }>, componentes?: Array<{ nombre, descripcion?, config?: object | string }> }` | Actualiza un proyecto y reemplaza sus subproyectos, las tecnologías relacionadas y sus componentes |
+| `proyectos:create` | `{ nombre, descripcion, subproyectos?: Array<{ id?: number, nombre: string, tecnologias?: number[] }>, componentes?: Array<{ nombre: string, descripcion?: string, config?: object | string, subproyectos?: number[] }> }` | Crea un nuevo proyecto con subproyectos, tecnologías relacionadas, componentes y subproyectos vinculados a cada componente |
+| `proyectos:update` | `{ id, nombre?, descripcion?, subproyectos?: Array<{ id?: number, nombre: string, tecnologias?: number[] }>, componentes?: Array<{ nombre: string, descripcion?: string, config?: object | string, subproyectos?: number[] }> }` | Actualiza un proyecto y reemplaza sus subproyectos, las tecnologías relacionadas, sus componentes y las relaciones de componentes a subproyectos |
 | `proyectos:delete` | `{ id }` | Elimina un proyecto junto a sus subproyectos y componentes |
 
 ## Respuestas (callback ack)
@@ -56,3 +56,10 @@ Tabla `componentes` via Knex (ver `backend/migrations/20260416_create_componente
 - `config` json notnull
 - `creado_el` datetime notnull default now
 - `actualizado_el` datetime notnull default now
+
+Tabla `subproyecto_componentes` via Knex (ver `backend/migrations/20260428_create_subproyecto_componentes_table.js`):
+- `id` integer pk autoincremental
+- `componente_id` integer fk referencias `componentes.id` notnull
+- `subproyecto_id` integer fk referencias `subproyectos.id` notnull
+- `creado_el` datetime notnull default now
+- `unique (componente_id, subproyecto_id)`

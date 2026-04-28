@@ -127,6 +127,7 @@ function abrirFormulario(proyecto) {
       subproyectos: Array.isArray(subproyectos)
         ? subproyectos
             .map((item) => ({
+              id: item?.id,
               nombre: String(item?.nombre ?? '').trim(),
               tecnologias: Array.isArray(item?.tecnologias)
                 ? item.tecnologias.map((id) => Number(id)).filter((id) => id > 0)
@@ -171,6 +172,7 @@ function abrirFormulario(proyecto) {
           descripcion: resp.data.descripcion,
           subproyectos: Array.isArray(resp.data.subproyectos)
             ? resp.data.subproyectos.map((item) => ({
+                id: item.id,
                 nombre: item.nombre,
                 tecnologias: Array.isArray(item.tecnologias)
                   ? item.tecnologias.map((t) => Number(t.id)).filter((id) => id > 0)
@@ -182,6 +184,9 @@ function abrirFormulario(proyecto) {
                 nombre: item.nombre,
                 descripcion: item.descripcion,
                 configText: item?.config ? JSON.stringify(item.config, null, 2) : '{}',
+                subproyectos: Array.isArray(item.subproyectos)
+                  ? item.subproyectos.map((id) => Number(id)).filter((id) => id > 0)
+                  : [],
               }))
             : [],
         };

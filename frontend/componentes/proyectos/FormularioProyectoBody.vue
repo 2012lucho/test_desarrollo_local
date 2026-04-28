@@ -66,6 +66,8 @@ import FormularioSubproyectoFooter from './FormularioSubproyectoFooter.vue';
 const props = defineProps(['form', 'mensajeError']);
 const { mostrarModal } = useModal();
 
+const generarIdTemporal = () => -(Date.now() + Math.floor(Math.random() * 1000));
+
 const nombre = computed({
   get: () => props.form?.value?.nombre ?? '',
   set: (val) => { if (props.form?.value) props.form.value.nombre = val; },
@@ -110,12 +112,13 @@ function abrirDetalleSubproyecto(subproyecto = null, index = null) {
   const subproyectoTemp = ref(
     subproyecto
       ? {
+          id: subproyecto.id ?? generarIdTemporal(),
           nombre: subproyecto.nombre ?? '',
           tecnologias: Array.isArray(subproyecto.tecnologias)
             ? [...subproyecto.tecnologias]
             : [],
         }
-      : { nombre: '', tecnologias: [] }
+      : { id: generarIdTemporal(), nombre: '', tecnologias: [] }
   );
   const mensajeErrorSubproyecto = ref('');
   let cerrarDetalle = null;
@@ -130,6 +133,7 @@ function abrirDetalleSubproyecto(subproyecto = null, index = null) {
     }
 
     const subproyectoGuardado = {
+      id: subproyectoTemp.value.id,
       nombre: nombreTrim,
       tecnologias: Array.isArray(subproyectoTemp.value.tecnologias)
         ? Array.from(new Set(subproyectoTemp.value.tecnologias.map((id) => Number(id)).filter((id) => id > 0)))
@@ -168,8 +172,9 @@ function abrirDetalleComponente(componente = null, index = null) {
           nombre: componente.nombre ?? '',
           descripcion: componente.descripcion ?? '',
           configText: componente.configText ?? JSON.stringify(componente.config ?? {}, null, 2),
+          subproyectos: Array.isArray(componente.subproyectos) ? [...componente.subproyectos] : [],
         }
-      : { nombre: '', descripcion: '', configText: '{}' }
+      : { nombre: '', descripcion: '', configText: '{}', subproyectos: [] }
   );
   const mensajeErrorComponente = ref('');
   let cerrarDetalle = null;
@@ -196,6 +201,9 @@ function abrirDetalleComponente(componente = null, index = null) {
       nombre: nombreTrim,
       descripcion: descripcionTrim,
       configText: configTextValue,
+      subproyectos: Array.isArray(componenteTemp.value.subproyectos)
+        ? Array.from(new Set(componenteTemp.value.subproyectos.map((id) => Number(id)).filter((id) => id !== 0 && !Number.isNaN(id))))
+        : [],
     };
 
     if (index !== null && index !== undefined && index >= 0) {
@@ -214,7 +222,7 @@ function abrirDetalleComponente(componente = null, index = null) {
     body: FormularioComponenteBody,
     footer: FormularioComponenteFooter,
     headerProps: { componente: componenteTemp },
-    bodyProps: { componente: componenteTemp, mensajeError: mensajeErrorComponente },
+    bodyProps: { componente: componenteTemp, mensajeError: mensajeErrorComponente, subproyectos },
     footerProps: { onGuardar: guardarComponente, onCerrar: () => cerrarDetalle && cerrarDetalle() },
   });
 }
