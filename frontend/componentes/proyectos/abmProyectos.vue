@@ -125,7 +125,14 @@ function abrirFormulario(proyecto) {
       nombre,
       descripcion,
       subproyectos: Array.isArray(subproyectos)
-        ? subproyectos.map((item) => String(item?.nombre ?? '').trim()).filter(Boolean)
+        ? subproyectos
+            .map((item) => ({
+              nombre: String(item?.nombre ?? '').trim(),
+              tecnologias: Array.isArray(item?.tecnologias)
+                ? item.tecnologias.map((id) => Number(id)).filter((id) => id > 0)
+                : [],
+            }))
+            .filter((item) => item.nombre)
         : [],
       componentes: componentesPayload,
     };
@@ -163,7 +170,12 @@ function abrirFormulario(proyecto) {
           nombre: resp.data.nombre,
           descripcion: resp.data.descripcion,
           subproyectos: Array.isArray(resp.data.subproyectos)
-            ? resp.data.subproyectos.map((item) => ({ nombre: item.nombre }))
+            ? resp.data.subproyectos.map((item) => ({
+                nombre: item.nombre,
+                tecnologias: Array.isArray(item.tecnologias)
+                  ? item.tecnologias.map((t) => Number(t.id)).filter((id) => id > 0)
+                  : [],
+              }))
             : [],
           componentes: Array.isArray(resp.data.componentes)
             ? resp.data.componentes.map((item) => ({

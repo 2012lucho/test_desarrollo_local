@@ -109,8 +109,13 @@ const componentes = computed({
 function abrirDetalleSubproyecto(subproyecto = null, index = null) {
   const subproyectoTemp = ref(
     subproyecto
-      ? { nombre: subproyecto.nombre ?? '' }
-      : { nombre: '' }
+      ? {
+          nombre: subproyecto.nombre ?? '',
+          tecnologias: Array.isArray(subproyecto.tecnologias)
+            ? [...subproyecto.tecnologias]
+            : [],
+        }
+      : { nombre: '', tecnologias: [] }
   );
   const mensajeErrorSubproyecto = ref('');
   let cerrarDetalle = null;
@@ -124,7 +129,12 @@ function abrirDetalleSubproyecto(subproyecto = null, index = null) {
       return;
     }
 
-    const subproyectoGuardado = { nombre: nombreTrim };
+    const subproyectoGuardado = {
+      nombre: nombreTrim,
+      tecnologias: Array.isArray(subproyectoTemp.value.tecnologias)
+        ? Array.from(new Set(subproyectoTemp.value.tecnologias.map((id) => Number(id)).filter((id) => id > 0)))
+        : [],
+    };
 
     if (index !== null && index !== undefined && index >= 0) {
       subproyectos.value[index] = subproyectoGuardado;

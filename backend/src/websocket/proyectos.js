@@ -26,10 +26,6 @@ module.exports = (socket, io) => {
     }
   };
 
-  const cargarSubproyectos = async (proyectoId) => {
-    return await db('subproyectos').where({ proyecto_id: proyectoId }).orderBy('id', 'asc');
-  };
-
   const cargarComponentes = async (proyectoId) => {
     return await db('componentes').where({ proyecto_id: proyectoId }).orderBy('id', 'asc');
   };
@@ -68,6 +64,60 @@ module.exports = (socket, io) => {
         };
       })
       .filter(Boolean);
+  };
+
+  const prepararSubproyectoData = (item) => {
+    if (typeof item === 'string') {
+      item = { nombre: item };
+    }
+    if (!item || typeof item !== 'object') return null;
+
+    const nombre = String(item.nombre ?? '').trim();
+    if (!nombre) return null;
+
+    const tecnologias = Array.isArray(item.tecnologias)
+      ? Array.from(new Set(item.tecnologias.map((id) => Number(id)).filter((id) => id > 0)))
+      : [];
+
+    return { nombre, tecnologias };
+  };
+
+  const cargarSubproyectos = async (proyectoId) => {
+    const subproyectos = await db('subproyectos').where({ proyecto_id: proyectoId }).orderBy('id', 'asc');
+    if (!subproyectos.length) return [];
+
+    const subproyectoIds = subproyectos.map((sub) => sub.id);
+    const relaciones = await db('subproyecto_tecnologias as st')
+      .join('tecnologias as t', 'st.tecnologia_id', 't.id')
+      .whereIn('st.subproyecto_id', subproyectoIds)
+      .select('st.subproyecto_id', 't.id', 't.nombre', 't.color')
+      .orderBy('t.nombre', 'asc');
+
+    const tecnologiasPorSubproyecto = relaciones.reduce((acc, item) => {
+      if (!acc[item.subproyecto_id]) acc[item.subproyecto_id] = [];
+      acc[item.subproyecto_id].push({ id: item.id, nombre: item.nombre, color: item.color });
+      return acc;
+    }, {});
+
+    return subproyectos.map((sub) => ({
+      ...sub,
+      tecnologias: tecnologiasPorSubproyecto[sub.id] || [],
+    }));
+  };
+
+  const crearSubproyecto = async (proyectoId, subproyecto) => {
+    const registro = prepararSubproyectoData(subproyecto);
+    if (!registro) return null;
+
+    const [subproyectoId] = await db('subproyectos').insert({ proyecto_id: proyectoId, nombre: registro.nombre });
+    if (registro.tecnologias.length) {
+      const relaciones = registro.tecnologias.map((tecnologia_id) => ({
+        subproyecto_id: subproyectoId,
+        tecnologia_id,
+      }));
+      await db('subproyecto_tecnologias').insert(relaciones);
+    }
+    return subproyectoId;
   };
 
   socket.on('proyectos:list', async (payload, callback) => {
@@ -110,11 +160,8 @@ module.exports = (socket, io) => {
       const [id] = await db('proyectos').insert({ nombre, descripcion });
 
       if (Array.isArray(subproyectos) && subproyectos.length) {
-        const registros = subproyectos
-          .map((nombreSub) => ({ proyecto_id: id, nombre: String(nombreSub || '').trim() }))
-          .filter((item) => item.nombre);
-        if (registros.length) {
-          await db('subproyectos').insert(registros);
+        for (const item of subproyectos) {
+          await crearSubproyecto(id, item);
         }
       }
 
@@ -166,11 +213,8 @@ module.exports = (socket, io) => {
 
       if (Array.isArray(payload.subproyectos)) {
         await db('subproyectos').where({ proyecto_id: id }).delete();
-        const registros = payload.subproyectos
-          .map((nombreSub) => ({ proyecto_id: id, nombre: String(nombreSub || '').trim() }))
-          .filter((item) => item.nombre);
-        if (registros.length) {
-          await db('subproyectos').insert(registros);
+        for (const item of payload.subproyectos) {
+          await crearSubproyecto(id, item);
         }
       }
 
