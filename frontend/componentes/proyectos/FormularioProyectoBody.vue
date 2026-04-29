@@ -146,8 +146,12 @@ const tablas = computed({
 function abrirDetalleTabla(tabla = null, index = null) {
   const tablaTemp = ref(
     tabla
-      ? { id: tabla.id ?? generarIdTemporal(), nombre: tabla.nombre ?? '' }
-      : { id: generarIdTemporal(), nombre: '' }
+      ? {
+          id: tabla.id ?? generarIdTemporal(),
+          nombre: tabla.nombre ?? '',
+          campos: Array.isArray(tabla.campos) ? [...tabla.campos] : [],
+        }
+      : { id: generarIdTemporal(), nombre: '', campos: [] }
   );
   const mensajeErrorTabla = ref('');
   let cerrarDetalle = null;
@@ -163,6 +167,15 @@ function abrirDetalleTabla(tabla = null, index = null) {
     const tablaGuardada = {
       id: tablaTemp.value.id,
       nombre: nombreTrim,
+      campos: Array.isArray(tablaTemp.value.campos)
+        ? tablaTemp.value.campos
+            .map((campo) => ({
+              id: campo.id ?? generarIdTemporal(),
+              nombre: String(campo.nombre ?? '').trim(),
+              descripcion: campo.descripcion ? String(campo.descripcion).trim() : null,
+            }))
+            .filter((campo) => campo.nombre)
+        : [],
     };
 
     if (index !== null && index !== undefined && index >= 0) {

@@ -125,7 +125,17 @@ function abrirFormulario(proyecto) {
 
     const tablasPayload = Array.isArray(form.value.tablas)
       ? form.value.tablas
-          .map((item) => ({ nombre: String(item?.nombre ?? '').trim() }))
+          .map((item) => ({
+            nombre: String(item?.nombre ?? '').trim(),
+            campos: Array.isArray(item?.campos)
+              ? item.campos
+                  .map((campo) => ({
+                    nombre: String(campo?.nombre ?? '').trim(),
+                    descripcion: campo?.descripcion ? String(campo.descripcion).trim() : null,
+                  }))
+                  .filter((campo) => campo.nombre)
+              : [],
+          }))
           .filter((item) => item.nombre)
       : [];
 
@@ -190,7 +200,17 @@ function abrirFormulario(proyecto) {
               }))
             : [],
           tablas: Array.isArray(resp.data.tablas)
-          ? resp.data.tablas.map((item) => ({ id: item.id, nombre: item.nombre }))
+          ? resp.data.tablas.map((item) => ({
+                id: item.id,
+                nombre: item.nombre,
+                campos: Array.isArray(item.campos)
+                  ? item.campos.map((campo) => ({
+                      id: campo.id,
+                      nombre: campo.nombre,
+                      descripcion: campo.descripcion || null,
+                    }))
+                  : [],
+              }))
           : [],
         componentes: Array.isArray(resp.data.componentes)
             ? resp.data.componentes.map((item) => ({

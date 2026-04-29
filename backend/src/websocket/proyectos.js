@@ -52,8 +52,27 @@ module.exports = (socket, io) => {
     }));
   };
 
+  const cargarCamposTabla = async (tablaIds) => {
+    if (!Array.isArray(tablaIds) || tablaIds.length === 0) return [];
+    return db('campos_tabla').whereIn('id_tabla', tablaIds).orderBy('id', 'asc');
+  };
+
   const cargarTablas = async (proyectoId) => {
-    return db('tablas_db_proyectos').where({ proyecto_id: proyectoId }).orderBy('id', 'asc');
+    const tablas = await db('tablas_db_proyectos').where({ proyecto_id: proyectoId }).orderBy('id', 'asc');
+    if (!tablas.length) return [];
+
+    const tablaIds = tablas.map((item) => item.id);
+    const campos = await cargarCamposTabla(tablaIds);
+    const camposPorTabla = campos.reduce((acc, item) => {
+      if (!acc[item.id_tabla]) acc[item.id_tabla] = [];
+      acc[item.id_tabla].push(item);
+      return acc;
+    }, {});
+
+    return tablas.map((item) => ({
+      ...item,
+      campos: camposPorTabla[item.id] || [],
+    }));
   };
 
   const prepararRegistrosComponentes = (componentes, proyectoId) => {
@@ -163,20 +182,58 @@ module.exports = (socket, io) => {
       .map((item) => {
         const nombre = String(item?.nombre ?? '').trim();
         if (!nombre) return null;
-        return { nombre };
+
+        const campos = Array.isArray(item.campos)
+          ? item.campos
+              .map((campo) => {
+                const nombreCampo = String(campo?.nombre ?? '').trim();
+                if (!nombreCampo) return null;
+                return {
+                  nombre: nombreCampo,
+                  descripcion: campo?.descripcion ? String(campo.descripcion).trim() : null,
+                };
+              })
+              .filter(Boolean)
+          : [];
+
+        return { nombre, campos };
       })
       .filter(Boolean);
+  };
+
+  const insertarCamposTabla = async (proyectoId, tablaId, campos) => {
+    if (!Array.isArray(campos) || !tablaId) return;
+    const registros = campos
+      .map((item) => {
+        const nombre = String(item?.nombre ?? '').trim();
+        if (!nombre) return null;
+        return {
+          proyecto_id: proyectoId,
+          id_tabla: tablaId,
+          nombre,
+          descripcion: item?.descripcion ? String(item.descripcion).trim() : null,
+        };
+      })
+      .filter(Boolean);
+
+    if (registros.length) {
+      await db('campos_tabla').insert(registros);
+    }
   };
 
   const insertarTablas = async (proyectoId, tablas) => {
     const registros = prepararTablasData(tablas);
     if (!registros.length) return;
 
-    const relaciones = registros.map((item) => ({
-      proyecto_id: proyectoId,
-      nombre: item.nombre,
-    }));
-    await db('tablas_db_proyectos').insert(relaciones);
+    for (const item of registros) {
+      const [tablaId] = await db('tablas_db_proyectos').insert({
+        proyecto_id: proyectoId,
+        nombre: item.nombre,
+      });
+      if (Array.isArray(item.campos) && item.campos.length) {
+        await insertarCamposTabla(proyectoId, tablaId, item.campos);
+      }
+    }
   };
 
   const cargarSubproyectos = async (proyectoId) => {

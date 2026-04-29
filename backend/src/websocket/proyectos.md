@@ -9,8 +9,8 @@ Inyectado en `backend/src/index.js` dentro de `io.on('connection')`.
 |---|---|---|
 | `proyectos:list` | (sin payload) | Devuelve todos los proyectos ordenados por id asc |
 | `proyectos:get` | `{ id }` | Devuelve un proyecto por id, incluyendo sus subproyectos y sus componentes |
-| `proyectos:create` | `{ nombre, descripcion, subproyectos?: Array<{ id?: number, nombre: string, tecnologias?: number[] }>, componentes?: Array<{ nombre: string, descripcion?: string, config?: object | string, subproyectos?: number[] }> }` | Crea un nuevo proyecto con subproyectos, tecnologías relacionadas, componentes y subproyectos vinculados a cada componente |
-| `proyectos:update` | `{ id, nombre?, descripcion?, subproyectos?: Array<{ id?: number, nombre: string, tecnologias?: number[] }>, componentes?: Array<{ nombre: string, descripcion?: string, config?: object | string, subproyectos?: number[] }> }` | Actualiza un proyecto y reemplaza sus subproyectos, las tecnologías relacionadas, sus componentes y las relaciones de componentes a subproyectos |
+| `proyectos:create` | `{ nombre, descripcion, subproyectos?: Array<{ id?: number, nombre: string, tecnologias?: number[] }>, componentes?: Array<{ nombre: string, descripcion?: string, config?: object | string, subproyectos?: number[] }>, tablas?: Array<{ nombre: string, campos?: Array<{ nombre: string, descripcion?: string }> }> }` | Crea un nuevo proyecto con subproyectos, tecnologías relacionadas, componentes, tablas y campos de tabla |
+| `proyectos:update` | `{ id, nombre?, descripcion?, subproyectos?: Array<{ id?: number, nombre: string, tecnologias?: number[] }>, componentes?: Array<{ nombre: string, descripcion?: string, config?: object | string, subproyectos?: number[] }>, tablas?: Array<{ nombre: string, campos?: Array<{ nombre: string, descripcion?: string }> }> }` | Actualiza un proyecto y reemplaza sus subproyectos, las tecnologías relacionadas, sus componentes, tablas y campos de tabla |
 | `proyectos:delete` | `{ id }` | Elimina un proyecto junto a sus subproyectos y componentes |
 
 ## Respuestas (callback ack)
@@ -61,6 +61,13 @@ Tabla `tablas_db_proyectos` via Knex (ver `backend/migrations/20260501_create_ta
 - `id` integer pk autoincremental
 - `nombre` varchar(100) notnull
 - `proyecto_id` integer fk referencias `proyectos.id` notnull
+
+Tabla `campos_tabla` via Knex (ver `backend/migrations/20260502_create_campos_tabla_table.js`):
+- `id` integer pk autoincremental
+- `nombre` varchar(100) notnull
+- `descripcion` text null
+- `proyecto_id` integer fk referencias `proyectos.id` notnull
+- `id_tabla` integer fk referencias `tablas_db_proyectos.id` notnull
 
 Tabla `subproyecto_componentes` via Knex (ver `backend/migrations/20260428_create_subproyecto_componentes_table.js`):
 - `id` integer pk autoincremental
