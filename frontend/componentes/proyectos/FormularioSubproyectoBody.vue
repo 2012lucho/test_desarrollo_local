@@ -65,6 +65,56 @@
             </div>
           </div>
         </div>
+
+        <div class="mb-3">
+          <label class="form-label">Componentes relacionados</label>
+          <div class="border rounded p-2 mb-2" style="min-height: 140px;">
+            <div v-if="!componentesSeleccionados.length" class="text-muted">Sin componentes seleccionados.</div>
+            <ul v-else class="list-unstyled mb-0">
+              <li
+                v-for="componente in componentesSeleccionados"
+                :key="componente.id"
+                class="d-flex justify-content-between align-items-center mb-2"
+              >
+                <span>{{ componente.nombre || 'Componente sin nombre' }}</span>
+                <button type="button" class="btn btn-sm btn-outline-danger" @click="quitarComponente(componente.id)">Eliminar</button>
+              </li>
+            </ul>
+          </div>
+
+          <div class="d-flex gap-2 mb-2">
+            <button type="button" class="btn btn-sm btn-outline-primary" @click="mostrarSeleccionComponentes = !mostrarSeleccionComponentes">
+              {{ mostrarSeleccionComponentes ? 'Ocultar' : 'Seleccionar' }} componentes
+            </button>
+            <button
+              v-if="selectedComponentes.length"
+              type="button"
+              class="btn btn-sm btn-outline-secondary"
+              @click="limpiarComponentes"
+            >
+              Limpiar selección
+            </button>
+          </div>
+
+          <div v-if="mostrarSeleccionComponentes" class="border rounded p-2">
+            <div v-if="!componentes.length" class="text-muted">No hay componentes disponibles.</div>
+            <div v-else class="list-group">
+              <label
+                v-for="componente in componentes"
+                :key="componente.id"
+                class="list-group-item d-flex align-items-center"
+              >
+                <input
+                  type="checkbox"
+                  class="form-check-input me-2"
+                  :value="componente.id"
+                  v-model="selectedComponentes"
+                />
+                <span>{{ componente.nombre || 'Componente sin nombre' }}</span>
+              </label>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -78,12 +128,18 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { io } from 'socket.io-client';
 
-const props = defineProps(['subproyecto', 'mensajeError']);
+const props = defineProps(['subproyecto', 'mensajeError', 'componentes']);
 
 const socket = io(import.meta.env.VITE_API_URL);
 const tecnologias = ref([]);
 const cargandoTecnologias = ref(false);
 const mostrarSeleccion = ref(false);
+const mostrarSeleccionComponentes = ref(false);
+
+const componentes = computed(() => {
+  const value = props.componentes?.value ?? props.componentes;
+  return Array.isArray(value) ? value : [];
+});
 
 const selectedTecnologias = computed({
   get: () => {
@@ -111,6 +167,27 @@ const nombre = computed({
   set: (val) => { if (props.subproyecto?.value) props.subproyecto.value.nombre = val; },
 });
 
+const selectedComponentes = computed({
+  get: () => {
+    if (!props.subproyecto?.value) return [];
+    if (!Array.isArray(props.subproyecto.value.componentes)) {
+      props.subproyecto.value.componentes = [];
+    }
+    return props.subproyecto.value.componentes;
+  },
+  set: (val) => {
+    if (props.subproyecto?.value) {
+      props.subproyecto.value.componentes = Array.isArray(val)
+        ? Array.from(new Set(val.map((id) => Number(id)).filter((id) => id !== 0 && !Number.isNaN(id))))
+        : [];
+    }
+  },
+});
+
+const componentesSeleccionados = computed(() => {
+  return componentes.value.filter((item) => selectedComponentes.value.includes(item.id));
+});
+
 function cargarTecnologias() {
   cargandoTecnologias.value = true;
   socket.emit('tecnologias:list', null, (resp) => {
@@ -129,6 +206,14 @@ function quitarTecnologia(id) {
 
 function limpiarTecnologias() {
   selectedTecnologias.value = [];
+}
+
+function quitarComponente(id) {
+  selectedComponentes.value = selectedComponentes.value.filter((item) => item !== id);
+}
+
+function limpiarComponentes() {
+  selectedComponentes.value = [];
 }
 
 onMounted(() => {

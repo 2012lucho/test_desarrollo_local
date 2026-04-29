@@ -194,6 +194,7 @@ function abrirFormulario(proyecto) {
           : [],
         componentes: Array.isArray(resp.data.componentes)
             ? resp.data.componentes.map((item) => ({
+                id: item.id ?? generarIdTemporal(),
                 nombre: item.nombre,
                 descripcion: item.descripcion,
                 configText: item?.config ? JSON.stringify(item.config, null, 2) : '{}',

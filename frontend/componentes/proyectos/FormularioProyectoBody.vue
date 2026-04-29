@@ -174,8 +174,14 @@ function abrirDetalleSubproyecto(subproyecto = null, index = null) {
           tecnologias: Array.isArray(subproyecto.tecnologias)
             ? [...subproyecto.tecnologias]
             : [],
+          componentes: Array.isArray(subproyecto.componentes)
+            ? [...subproyecto.componentes]
+            : componentes.value
+                .filter((item) => Array.isArray(item.subproyectos) && item.subproyectos.includes(subproyecto.id))
+                .map((item) => item.id)
+                .filter((id) => id !== undefined),
         }
-      : { id: generarIdTemporal(), nombre: '', tecnologias: [] }
+      : { id: generarIdTemporal(), nombre: '', tecnologias: [], componentes: [] }
   );
   const mensajeErrorSubproyecto = ref('');
   let cerrarDetalle = null;
@@ -195,6 +201,9 @@ function abrirDetalleSubproyecto(subproyecto = null, index = null) {
       tecnologias: Array.isArray(subproyectoTemp.value.tecnologias)
         ? Array.from(new Set(subproyectoTemp.value.tecnologias.map((id) => Number(id)).filter((id) => id > 0)))
         : [],
+      componentes: Array.isArray(subproyectoTemp.value.componentes)
+        ? Array.from(new Set(subproyectoTemp.value.componentes.map((id) => Number(id)).filter((id) => id !== 0 && !Number.isNaN(id))))
+        : [],
     };
 
     if (index !== null && index !== undefined && index >= 0) {
@@ -202,6 +211,8 @@ function abrirDetalleSubproyecto(subproyecto = null, index = null) {
     } else {
       subproyectos.value.push(subproyectoGuardado);
     }
+
+    actualizarComponentesRelacionados(subproyectoGuardado.id, subproyectoGuardado.componentes);
 
     if (typeof cerrarDetalle === 'function') {
       cerrarDetalle();
@@ -213,25 +224,55 @@ function abrirDetalleSubproyecto(subproyecto = null, index = null) {
     body: FormularioSubproyectoBody,
     footer: FormularioSubproyectoFooter,
     headerProps: { subproyecto: subproyectoTemp },
-    bodyProps: { subproyecto: subproyectoTemp, mensajeError: mensajeErrorSubproyecto },
+    bodyProps: {
+      subproyecto: subproyectoTemp,
+      mensajeError: mensajeErrorSubproyecto,
+      componentes,
+    },
     footerProps: { onGuardar: guardarSubproyecto, onCerrar: () => cerrarDetalle && cerrarDetalle() },
   });
 }
 
+function actualizarComponentesRelacionados(subproyectoId, seleccionados) {
+  if (!subproyectoId) return;
+  componentes.value.forEach((componente) => {
+    if (!Array.isArray(componente.subproyectos)) {
+      componente.subproyectos = [];
+    }
+    const existe = componente.subproyectos.includes(subproyectoId);
+    const debeExistir = Array.isArray(seleccionados) && seleccionados.includes(subproyectoId);
+    if (debeExistir && !existe) {
+      componente.subproyectos.push(subproyectoId);
+    }
+    if (!debeExistir && existe) {
+      componente.subproyectos = componente.subproyectos.filter((id) => id !== subproyectoId);
+    }
+  });
+}
+
 function quitarSubproyecto(index) {
+  const subproyectoId = subproyectos.value[index]?.id;
   subproyectos.value.splice(index, 1);
+  if (subproyectoId !== undefined) {
+    componentes.value.forEach((componente) => {
+      if (Array.isArray(componente.subproyectos)) {
+        componente.subproyectos = componente.subproyectos.filter((id) => id !== subproyectoId);
+      }
+    });
+  }
 }
 
 function abrirDetalleComponente(componente = null, index = null) {
   const componenteTemp = ref(
     componente
       ? {
+          id: componente.id ?? generarIdTemporal(),
           nombre: componente.nombre ?? '',
           descripcion: componente.descripcion ?? '',
           configText: componente.configText ?? JSON.stringify(componente.config ?? {}, null, 2),
           subproyectos: Array.isArray(componente.subproyectos) ? [...componente.subproyectos] : [],
         }
-      : { nombre: '', descripcion: '', configText: '{}', subproyectos: [] }
+      : { id: generarIdTemporal(), nombre: '', descripcion: '', configText: '{}', subproyectos: [] }
   );
   const mensajeErrorComponente = ref('');
   let cerrarDetalle = null;
@@ -255,6 +296,7 @@ function abrirDetalleComponente(componente = null, index = null) {
     }
 
     const componenteGuardado = {
+      id: componenteTemp.value.id,
       nombre: nombreTrim,
       descripcion: descripcionTrim,
       configText: configTextValue,
