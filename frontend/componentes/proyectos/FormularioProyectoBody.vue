@@ -45,6 +45,26 @@
           <button type="button" class="btn btn-sm btn-outline-primary" @click="abrirDetalleComponente()">Agregar componente</button>
         </div>
       </div>
+
+      <div class="col-12 col-lg-6">
+        <div class="mb-3">
+          <label class="form-label">Tablas de base de datos</label>
+          <ul class="list-group mb-2">
+            <li v-for="(tabla, index) in tablas" :key="tabla.id ?? index" class="list-group-item d-flex justify-content-between align-items-center">
+              <span class="flex-grow-1">{{ tabla.nombre || 'Tabla sin nombre' }}</span>
+              <div class="btn-group">
+                <button type="button" class="btn btn-sm btn-outline-primary" @click="editarTabla(index)">Editar</button>
+                <button type="button" class="btn btn-sm btn-outline-danger" @click="quitarTabla(index)">Eliminar</button>
+              </div>
+            </li>
+            <li v-if="!tablas.length" class="list-group-item text-muted">Sin tablas aún.</li>
+          </ul>
+          <div class="input-group">
+            <input type="text" class="form-control" placeholder="Nombre de la tabla" v-model="nuevaTablaNombre" />
+            <button type="button" class="btn btn-sm btn-outline-primary" @click="agregarTabla">Agregar tabla</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div v-if="props.mensajeError?.value" class="alert alert-danger py-1 mb-0">
@@ -107,6 +127,43 @@ const componentes = computed({
     }
   },
 });
+
+const tablas = computed({
+  get: () => {
+    if (!props.form?.value) return [];
+    if (!Array.isArray(props.form.value.tablas)) {
+      props.form.value.tablas = [];
+    }
+    return props.form.value.tablas;
+  },
+  set: (val) => {
+    if (props.form?.value) {
+      props.form.value.tablas = val;
+    }
+  },
+});
+
+const nuevaTablaNombre = ref('');
+
+function agregarTabla() {
+  const nombreTrim = String(nuevaTablaNombre.value ?? '').trim();
+  if (!nombreTrim) return;
+  tablas.value.push({ id: generarIdTemporal(), nombre: nombreTrim });
+  nuevaTablaNombre.value = '';
+}
+
+function editarTabla(index) {
+  const nombreActual = tablas.value[index]?.nombre ?? '';
+  const nombreNuevo = window.prompt('Editar nombre de tabla', nombreActual);
+  if (nombreNuevo === null) return;
+  const nombreTrim = String(nombreNuevo).trim();
+  if (!nombreTrim) return;
+  tablas.value[index].nombre = nombreTrim;
+}
+
+function quitarTabla(index) {
+  tablas.value.splice(index, 1);
+}
 
 function abrirDetalleSubproyecto(subproyecto = null, index = null) {
   const subproyectoTemp = ref(

@@ -57,6 +57,11 @@ Tabla `componentes` via Knex (ver `backend/migrations/20260416_create_componente
 - `creado_el` datetime notnull default now
 - `actualizado_el` datetime notnull default now
 
+Tabla `tablas_db_proyectos` via Knex (ver `backend/migrations/20260501_create_tablas_db_proyectos_table.js`):
+- `id` integer pk autoincremental
+- `nombre` varchar(100) notnull
+- `proyecto_id` integer fk referencias `proyectos.id` notnull
+
 Tabla `subproyecto_componentes` via Knex (ver `backend/migrations/20260428_create_subproyecto_componentes_table.js`):
 - `id` integer pk autoincremental
 - `componente_id` integer fk referencias `componentes.id` notnull

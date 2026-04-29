@@ -43,3 +43,8 @@
 - subproyecto_id integer fk referencias subproyectos(id) notnull
 - creado_el datetime notnull (default now)
 - unique (componente_id, subproyecto_id)
+
+## tablas_db_proyectos
+- id integer pk autoincremental
+- nombre varchar (100) notnull
+- proyecto_id integer fk referencias proyectos(id) notnull

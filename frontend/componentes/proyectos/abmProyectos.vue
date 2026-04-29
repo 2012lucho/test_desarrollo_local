@@ -64,7 +64,7 @@ function cargarLista() {
 }
 
 function abrirFormulario(proyecto) {
-  const form = ref({ nombre: proyecto?.nombre ?? '', descripcion: proyecto?.descripcion ?? '', subproyectos: [], componentes: [] });
+  const form = ref({ nombre: proyecto?.nombre ?? '', descripcion: proyecto?.descripcion ?? '', subproyectos: [], tablas: [], componentes: [] });
   const editandoId = ref(proyecto?.id ?? null);
   const cargandoForm = ref(false);
   const mensajeErrorForm = ref('');
@@ -111,7 +111,10 @@ function abrirFormulario(proyecto) {
               const descripcionComp = String(item?.descripcion ?? '').trim();
               const configText = String(item?.configText ?? '').trim();
               const config = configText ? JSON.parse(configText) : {};
-              return { nombre: nombreComp, descripcion: descripcionComp, config };
+              const subproyectosComp = Array.isArray(item?.subproyectos)
+                ? item.subproyectos.map((id) => Number(id)).filter((id) => id > 0)
+                : [];
+              return { nombre: nombreComp, descripcion: descripcionComp, config, subproyectos: subproyectosComp };
             })
             .filter(Boolean)
         : [];
@@ -119,6 +122,12 @@ function abrirFormulario(proyecto) {
       mensajeErrorForm.value = 'El campo config de algún componente debe ser JSON válido';
       return;
     }
+
+    const tablasPayload = Array.isArray(form.value.tablas)
+      ? form.value.tablas
+          .map((item) => ({ nombre: String(item?.nombre ?? '').trim() }))
+          .filter((item) => item.nombre)
+      : [];
 
     cargandoForm.value = true;
     const payload = {
@@ -135,6 +144,7 @@ function abrirFormulario(proyecto) {
             }))
             .filter((item) => item.nombre)
         : [],
+      tablas: tablasPayload,
       componentes: componentesPayload,
     };
     const cerrarForm = () => {
@@ -179,7 +189,10 @@ function abrirFormulario(proyecto) {
                   : [],
               }))
             : [],
-          componentes: Array.isArray(resp.data.componentes)
+          tablas: Array.isArray(resp.data.tablas)
+          ? resp.data.tablas.map((item) => ({ id: item.id, nombre: item.nombre }))
+          : [],
+        componentes: Array.isArray(resp.data.componentes)
             ? resp.data.componentes.map((item) => ({
                 nombre: item.nombre,
                 descripcion: item.descripcion,

@@ -52,6 +52,10 @@ module.exports = (socket, io) => {
     }));
   };
 
+  const cargarTablas = async (proyectoId) => {
+    return db('tablas_db_proyectos').where({ proyecto_id: proyectoId }).orderBy('id', 'asc');
+  };
+
   const prepararRegistrosComponentes = (componentes, proyectoId) => {
     if (!Array.isArray(componentes)) return [];
     return componentes
@@ -153,6 +157,28 @@ module.exports = (socket, io) => {
     return { nombre, tecnologias };
   };
 
+  const prepararTablasData = (tablas) => {
+    if (!Array.isArray(tablas)) return [];
+    return tablas
+      .map((item) => {
+        const nombre = String(item?.nombre ?? '').trim();
+        if (!nombre) return null;
+        return { nombre };
+      })
+      .filter(Boolean);
+  };
+
+  const insertarTablas = async (proyectoId, tablas) => {
+    const registros = prepararTablasData(tablas);
+    if (!registros.length) return;
+
+    const relaciones = registros.map((item) => ({
+      proyecto_id: proyectoId,
+      nombre: item.nombre,
+    }));
+    await db('tablas_db_proyectos').insert(relaciones);
+  };
+
   const cargarSubproyectos = async (proyectoId) => {
     const subproyectos = await db('subproyectos').where({ proyecto_id: proyectoId }).orderBy('id', 'asc');
     if (!subproyectos.length) return [];
@@ -198,8 +224,9 @@ module.exports = (socket, io) => {
         return safeCallback(callback, { ok: false, error: 'Proyecto no encontrado', status: 404 });
       }
       const subproyectos = await cargarSubproyectos(id);
+      const tablas = await cargarTablas(id);
       const componentes = await cargarComponentes(id);
-      safeCallback(callback, { ok: true, data: { ...proyecto, subproyectos, componentes } });
+      safeCallback(callback, { ok: true, data: { ...proyecto, subproyectos, tablas, componentes } });
     } catch (error) {
       console.error('proyectos:get error', error);
       safeCallback(callback, { ok: false, error: 'Error obteniendo proyecto' });
@@ -219,6 +246,10 @@ module.exports = (socket, io) => {
         ? await insertarSubproyectos(id, subproyectos)
         : null;
 
+      if (Array.isArray(tablas) && tablas.length) {
+        await insertarTablas(id, tablas);
+      }
+
       if (Array.isArray(componentes)) {
         const registros = prepararRegistrosComponentes(componentes, id);
         if (registros.length) {
@@ -230,6 +261,7 @@ module.exports = (socket, io) => {
       const nuevoProyectoCompleto = {
         ...nuevoProyecto,
         subproyectos: await cargarSubproyectos(id),
+        tablas: await cargarTablas(id),
         componentes: await cargarComponentes(id),
       };
 
@@ -271,6 +303,11 @@ module.exports = (socket, io) => {
         subproyectoIdMap = await insertarSubproyectos(id, payload.subproyectos);
       }
 
+      if (Array.isArray(payload.tablas)) {
+        await db('tablas_db_proyectos').where({ proyecto_id: id }).delete();
+        await insertarTablas(id, payload.tablas);
+      }
+
       if (Array.isArray(payload.componentes)) {
         await db('componentes').where({ proyecto_id: id }).delete();
         const registros = prepararRegistrosComponentes(payload.componentes, id);
@@ -283,6 +320,7 @@ module.exports = (socket, io) => {
       const proyectoActualizadoCompleto = {
         ...proyectoActualizado,
         subproyectos: await cargarSubproyectos(id),
+        tablas: await cargarTablas(id),
         componentes: await cargarComponentes(id),
       };
       io.emit('proyectos:changed', { action: 'updated', proyecto: proyectoActualizadoCompleto });
