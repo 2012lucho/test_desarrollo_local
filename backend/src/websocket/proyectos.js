@@ -6,8 +6,8 @@ const db = require('../db');
  * Eventos entrantes (cliente -> servidor):
  * - proyectos:list
  * - proyectos:get { id }
- * - proyectos:create { nombre, descripcion, subproyectos?: Array<{ id?, nombre, tecnologias?: number[] }>, componentes?: Array<{ nombre, descripcion?, config?: object | string, subproyectos?: number[] }> }
- * - proyectos:update { id, nombre?, descripcion?, subproyectos?: Array<{ id?, nombre, tecnologias?: number[] }>, componentes?: Array<{ nombre, descripcion?, config?: object | string, subproyectos?: number[] }> }
+ * - proyectos:create { nombre, descripcion, subproyectos?: Array<{ id?, nombre, tecnologias?: number[] }>, tablas?: Array<{ id?, nombre, campos?: Array<{ nombre: string, descripcion?: string }> }>, componentes?: Array<{ nombre, descripcion?, config?: object | string, subproyectos?: number[], tablas?: number[] }> }
+ * - proyectos:update { id, nombre?, descripcion?, subproyectos?: Array<{ id?, nombre, tecnologias?: number[] }>, tablas?: Array<{ id?, nombre, campos?: Array<{ nombre: string, descripcion?: string }> }>, componentes?: Array<{ nombre, descripcion?, config?: object | string, subproyectos?: number[], tablas?: number[] }> }
  * - proyectos:delete { id }
  *
  * Respuestas por callback de ack o emisión general:
@@ -36,19 +36,29 @@ module.exports = (socket, io) => {
     if (!componentes.length) return [];
 
     const componenteIds = componentes.map((item) => item.id);
-    const relaciones = await db('subproyecto_componentes')
+    const relacionesSubproyectos = await db('subproyecto_componentes')
       .whereIn('componente_id', componenteIds)
       .select('componente_id', 'subproyecto_id');
+    const relacionesTablas = await db('componente_tabla')
+      .whereIn('componente_id', componenteIds)
+      .select('componente_id', 'tabla_id');
 
-    const subproyectosPorComponente = relaciones.reduce((acc, item) => {
+    const subproyectosPorComponente = relacionesSubproyectos.reduce((acc, item) => {
       if (!acc[item.componente_id]) acc[item.componente_id] = [];
       acc[item.componente_id].push(item.subproyecto_id);
+      return acc;
+    }, {});
+
+    const tablasPorComponente = relacionesTablas.reduce((acc, item) => {
+      if (!acc[item.componente_id]) acc[item.componente_id] = [];
+      acc[item.componente_id].push(item.tabla_id);
       return acc;
     }, {});
 
     return componentes.map((item) => ({
       ...item,
       subproyectos: subproyectosPorComponente[item.id] || [],
+      tablas: tablasPorComponente[item.id] || [],
     }));
   };
 
@@ -105,12 +115,17 @@ module.exports = (socket, io) => {
           ? Array.from(new Set(item.subproyectos.map((id) => normalizeKey(id)).filter((id) => id !== null)))
           : [];
 
+        const tablas = Array.isArray(item.tablas)
+          ? Array.from(new Set(item.tablas.map((id) => normalizeKey(id)).filter((id) => id !== null)))
+          : [];
+
         return {
           proyecto_id: proyectoId,
           nombre,
           descripcion,
           config,
           subproyectos,
+          tablas,
         };
       })
       .filter(Boolean);
@@ -140,13 +155,14 @@ module.exports = (socket, io) => {
     return mapping;
   };
 
-  const insertarComponentes = async (componentes, subproyectoIdMap) => {
+  const insertarComponentes = async (componentes, subproyectoIdMap, tablaIdMap) => {
     if (!Array.isArray(componentes)) return;
 
     for (const item of componentes) {
-      const { subproyectos, ...data } = item;
+      const { subproyectos, tablas, ...data } = item;
       const [componenteId] = await db('componentes').insert(data);
-      const relaciones = (Array.isArray(subproyectos) ? subproyectos : [])
+
+      const relacionesSubproyectos = (Array.isArray(subproyectos) ? subproyectos : [])
         .map((subId) => {
           const key = normalizeKey(subId);
           const subproyecto_id = subproyectoIdMap ? subproyectoIdMap[key] : Number(subId);
@@ -154,8 +170,20 @@ module.exports = (socket, io) => {
           return { componente_id: componenteId, subproyecto_id };
         })
         .filter(Boolean);
-      if (relaciones.length) {
-        await db('subproyecto_componentes').insert(relaciones);
+      if (relacionesSubproyectos.length) {
+        await db('subproyecto_componentes').insert(relacionesSubproyectos);
+      }
+
+      const relacionesTablas = (Array.isArray(tablas) ? tablas : [])
+        .map((tablaId) => {
+          const key = normalizeKey(tablaId);
+          const tabla_id = tablaIdMap ? tablaIdMap[key] : Number(tablaId);
+          if (!tabla_id || Number.isNaN(tabla_id)) return null;
+          return { componente_id: componenteId, tabla_id };
+        })
+        .filter(Boolean);
+      if (relacionesTablas.length) {
+        await db('componente_tabla').insert(relacionesTablas);
       }
     }
   };
@@ -224,18 +252,25 @@ module.exports = (socket, io) => {
   };
 
   const insertarTablas = async (proyectoId, tablas) => {
-    const registros = prepararTablasData(tablas);
-    if (!registros.length) return;
+    const mapping = {};
+    if (!Array.isArray(tablas)) return mapping;
 
-    for (const item of registros) {
+    for (const item of tablas) {
+      const nombre = String(item?.nombre ?? '').trim();
+      if (!nombre) continue;
+      const originalKey = normalizeKey(item?.id ?? item?.tempId);
       const [tablaId] = await db('tablas_db_proyectos').insert({
         proyecto_id: proyectoId,
-        nombre: item.nombre,
+        nombre,
       });
       if (Array.isArray(item.campos) && item.campos.length) {
         await insertarCamposTabla(proyectoId, tablaId, item.campos);
       }
+      if (originalKey !== null) {
+        mapping[originalKey] = tablaId;
+      }
     }
+    return mapping;
   };
 
   const cargarSubproyectos = async (proyectoId) => {
@@ -293,7 +328,7 @@ module.exports = (socket, io) => {
   });
 
   socket.on('proyectos:create', async (payload, callback) => {
-    const { nombre, descripcion, subproyectos, componentes } = payload || {};
+    const { nombre, descripcion, subproyectos, tablas, componentes } = payload || {};
     if (!nombre || !descripcion) {
       return safeCallback(callback, { ok: false, error: 'nombre y descripcion son requeridos' });
     }
@@ -305,14 +340,14 @@ module.exports = (socket, io) => {
         ? await insertarSubproyectos(id, subproyectos)
         : null;
 
-      if (Array.isArray(tablas) && tablas.length) {
-        await insertarTablas(id, tablas);
-      }
+      const tablaIdMap = Array.isArray(tablas) && tablas.length
+        ? await insertarTablas(id, tablas)
+        : null;
 
       if (Array.isArray(componentes)) {
         const registros = prepararRegistrosComponentes(componentes, id);
         if (registros.length) {
-          await insertarComponentes(registros, subproyectoIdMap);
+          await insertarComponentes(registros, subproyectoIdMap, tablaIdMap);
         }
       }
 
@@ -362,16 +397,17 @@ module.exports = (socket, io) => {
         subproyectoIdMap = await insertarSubproyectos(id, payload.subproyectos);
       }
 
+      let tablaIdMap = null;
       if (Array.isArray(payload.tablas)) {
         await db('tablas_db_proyectos').where({ proyecto_id: id }).delete();
-        await insertarTablas(id, payload.tablas);
+        tablaIdMap = await insertarTablas(id, payload.tablas);
       }
 
       if (Array.isArray(payload.componentes)) {
         await db('componentes').where({ proyecto_id: id }).delete();
         const registros = prepararRegistrosComponentes(payload.componentes, id);
         if (registros.length) {
-          await insertarComponentes(registros, subproyectoIdMap);
+          await insertarComponentes(registros, subproyectoIdMap, tablaIdMap);
         }
       }
 

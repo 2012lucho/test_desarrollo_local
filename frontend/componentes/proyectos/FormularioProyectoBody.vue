@@ -313,8 +313,9 @@ function abrirDetalleComponente(componente = null, index = null) {
           descripcion: componente.descripcion ?? '',
           configText: componente.configText ?? JSON.stringify(componente.config ?? {}, null, 2),
           subproyectos: Array.isArray(componente.subproyectos) ? [...componente.subproyectos] : [],
+          tablas: Array.isArray(componente.tablas) ? [...componente.tablas] : [],
         }
-      : { id: generarIdTemporal(), nombre: '', descripcion: '', configText: '{}', subproyectos: [] }
+      : { id: generarIdTemporal(), nombre: '', descripcion: '', configText: '{}', subproyectos: [], tablas: [] }
   );
   const mensajeErrorComponente = ref('');
   let cerrarDetalle = null;
@@ -345,6 +346,9 @@ function abrirDetalleComponente(componente = null, index = null) {
       subproyectos: Array.isArray(componenteTemp.value.subproyectos)
         ? Array.from(new Set(componenteTemp.value.subproyectos.map((id) => Number(id)).filter((id) => id !== 0 && !Number.isNaN(id))))
         : [],
+      tablas: Array.isArray(componenteTemp.value.tablas)
+        ? Array.from(new Set(componenteTemp.value.tablas.map((id) => Number(id)).filter((id) => id !== 0 && !Number.isNaN(id))))
+        : [],
     };
 
     if (index !== null && index !== undefined && index >= 0) {
@@ -363,7 +367,7 @@ function abrirDetalleComponente(componente = null, index = null) {
     body: FormularioComponenteBody,
     footer: FormularioComponenteFooter,
     headerProps: { componente: componenteTemp },
-    bodyProps: { componente: componenteTemp, mensajeError: mensajeErrorComponente, subproyectos },
+    bodyProps: { componente: componenteTemp, mensajeError: mensajeErrorComponente, subproyectos, tablas },
     footerProps: { onGuardar: guardarComponente, onCerrar: () => cerrarDetalle && cerrarDetalle() },
   });
 }

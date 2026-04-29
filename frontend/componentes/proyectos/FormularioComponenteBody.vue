@@ -30,8 +30,8 @@
       </div>
 
       <div class="d-flex gap-2 mb-2">
-        <button type="button" class="btn btn-sm btn-outline-primary" @click="mostrarSeleccion = !mostrarSeleccion">
-          {{ mostrarSeleccion ? 'Ocultar' : 'Seleccionar' }} subproyectos
+        <button type="button" class="btn btn-sm btn-outline-primary" @click="mostrarSeleccionSubproyectos = !mostrarSeleccionSubproyectos">
+          {{ mostrarSeleccionSubproyectos ? 'Ocultar' : 'Seleccionar' }} subproyectos
         </button>
         <button
           v-if="selectedSubproyectos.length"
@@ -43,7 +43,7 @@
         </button>
       </div>
 
-      <div v-if="mostrarSeleccion" class="border rounded p-2">
+      <div v-if="mostrarSeleccionSubproyectos" class="border rounded p-2">
         <div v-if="!subproyectosDisponibles.length" class="text-muted">No hay subproyectos disponibles.</div>
         <div v-else class="list-group">
           <label
@@ -63,6 +63,56 @@
       </div>
     </div>
 
+    <div class="mb-3">
+      <label class="form-label">Tablas relacionadas</label>
+      <div class="border rounded p-2 mb-2" style="min-height: 140px;">
+        <div v-if="!tablasSeleccionadas.length" class="text-muted">Sin tablas seleccionadas.</div>
+        <ul v-else class="list-unstyled mb-0">
+          <li
+            v-for="tabla in tablasSeleccionadas"
+            :key="tabla.id"
+            class="d-flex justify-content-between align-items-center mb-2"
+          >
+            <span>{{ tabla.nombre || 'Tabla sin nombre' }}</span>
+            <button type="button" class="btn btn-sm btn-outline-danger" @click="quitarTabla(tabla.id)">Eliminar</button>
+          </li>
+        </ul>
+      </div>
+
+      <div class="d-flex gap-2 mb-2">
+        <button type="button" class="btn btn-sm btn-outline-primary" @click="mostrarSeleccionTablas = !mostrarSeleccionTablas">
+          {{ mostrarSeleccionTablas ? 'Ocultar' : 'Seleccionar' }} tablas
+        </button>
+        <button
+          v-if="selectedTablas.length"
+          type="button"
+          class="btn btn-sm btn-outline-secondary"
+          @click="limpiarTablas"
+        >
+          Limpiar selección
+        </button>
+      </div>
+
+      <div v-if="mostrarSeleccionTablas" class="border rounded p-2">
+        <div v-if="!tablasDisponibles.length" class="text-muted">No hay tablas disponibles.</div>
+        <div v-else class="list-group">
+          <label
+            v-for="tabla in tablasDisponibles"
+            :key="tabla.id"
+            class="list-group-item d-flex align-items-center"
+          >
+            <input
+              type="checkbox"
+              class="form-check-input me-2"
+              :value="tabla.id"
+              v-model="selectedTablas"
+            />
+            <span>{{ tabla.nombre || 'Tabla sin nombre' }}</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
     <div v-if="props.mensajeError?.value" class="alert alert-danger py-1 mb-0">
       {{ props.mensajeError.value }}
     </div>
@@ -72,7 +122,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 
-const props = defineProps(['componente', 'mensajeError', 'subproyectos']);
+const props = defineProps(['componente', 'mensajeError', 'subproyectos', 'tablas']);
 
 const nombre = computed({
   get: () => props.componente?.value?.nombre ?? '',
@@ -89,7 +139,8 @@ const configText = computed({
   set: (val) => { if (props.componente?.value) props.componente.value.configText = val; },
 });
 
-const mostrarSeleccion = ref(false);
+const mostrarSeleccionSubproyectos = ref(false);
+const mostrarSeleccionTablas = ref(false);
 
 const selectedSubproyectos = computed({
   get: () => {
@@ -108,8 +159,30 @@ const selectedSubproyectos = computed({
   },
 });
 
+const selectedTablas = computed({
+  get: () => {
+    if (!props.componente?.value) return [];
+    if (!Array.isArray(props.componente.value.tablas)) {
+      props.componente.value.tablas = [];
+    }
+    return props.componente.value.tablas;
+  },
+  set: (val) => {
+    if (props.componente?.value) {
+      props.componente.value.tablas = Array.isArray(val)
+        ? Array.from(new Set(val.map((id) => Number(id)).filter((id) => id !== 0 && !Number.isNaN(id))))
+        : [];
+    }
+  },
+});
+
 const subproyectosDisponibles = computed(() => {
   const value = props.subproyectos?.value ?? props.subproyectos;
+  return Array.isArray(value) ? value : [];
+});
+
+const tablasDisponibles = computed(() => {
+  const value = props.tablas?.value ?? props.tablas;
   return Array.isArray(value) ? value : [];
 });
 
@@ -118,11 +191,24 @@ const subproyectosSeleccionados = computed(() => {
   return subproyectosDisponibles.value.filter((sub) => seleccionados.includes(sub.id));
 });
 
+const tablasSeleccionadas = computed(() => {
+  const seleccionados = selectedTablas.value;
+  return tablasDisponibles.value.filter((tabla) => seleccionados.includes(tabla.id));
+});
+
 function quitarSubproyecto(id) {
   selectedSubproyectos.value = selectedSubproyectos.value.filter((item) => item !== id);
 }
 
 function limpiarSubproyectos() {
   selectedSubproyectos.value = [];
+}
+
+function quitarTabla(id) {
+  selectedTablas.value = selectedTablas.value.filter((item) => item !== id);
+}
+
+function limpiarTablas() {
+  selectedTablas.value = [];
 }
 </script>

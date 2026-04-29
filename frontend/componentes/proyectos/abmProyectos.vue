@@ -112,9 +112,12 @@ function abrirFormulario(proyecto) {
               const configText = String(item?.configText ?? '').trim();
               const config = configText ? JSON.parse(configText) : {};
               const subproyectosComp = Array.isArray(item?.subproyectos)
-                ? item.subproyectos.map((id) => Number(id)).filter((id) => id > 0)
+                ? item.subproyectos.map((id) => Number(id)).filter((id) => id !== 0 && !Number.isNaN(id))
                 : [];
-              return { nombre: nombreComp, descripcion: descripcionComp, config, subproyectos: subproyectosComp };
+              const tablasComp = Array.isArray(item?.tablas)
+                ? item.tablas.map((id) => Number(id)).filter((id) => id !== 0 && !Number.isNaN(id))
+                : [];
+              return { nombre: nombreComp, descripcion: descripcionComp, config, subproyectos: subproyectosComp, tablas: tablasComp };
             })
             .filter(Boolean)
         : [];
@@ -126,6 +129,7 @@ function abrirFormulario(proyecto) {
     const tablasPayload = Array.isArray(form.value.tablas)
       ? form.value.tablas
           .map((item) => ({
+            id: item?.id,
             nombre: String(item?.nombre ?? '').trim(),
             campos: Array.isArray(item?.campos)
               ? item.campos
@@ -220,7 +224,10 @@ function abrirFormulario(proyecto) {
                 descripcion: item.descripcion,
                 configText: item?.config ? JSON.stringify(item.config, null, 2) : '{}',
                 subproyectos: Array.isArray(item.subproyectos)
-                  ? item.subproyectos.map((id) => Number(id)).filter((id) => id > 0)
+                  ? item.subproyectos.map((id) => Number(id)).filter((id) => id !== 0 && !Number.isNaN(id))
+                  : [],
+                tablas: Array.isArray(item.tablas)
+                  ? item.tablas.map((id) => Number(id)).filter((id) => id !== 0 && !Number.isNaN(id))
                   : [],
               }))
             : [],
