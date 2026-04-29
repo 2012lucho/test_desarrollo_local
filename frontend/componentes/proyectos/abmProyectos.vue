@@ -208,6 +208,7 @@ function abrirFormulario(proyecto) {
                       id: campo.id,
                       nombre: campo.nombre,
                       descripcion: campo.descripcion || null,
+                      orden: Number(campo.orden ?? 0),
                     }))
                   : [],
               }))

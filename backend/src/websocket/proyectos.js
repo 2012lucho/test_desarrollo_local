@@ -54,7 +54,7 @@ module.exports = (socket, io) => {
 
   const cargarCamposTabla = async (tablaIds) => {
     if (!Array.isArray(tablaIds) || tablaIds.length === 0) return [];
-    return db('campos_tabla').whereIn('id_tabla', tablaIds).orderBy('id', 'asc');
+    return db('campos_tabla').whereIn('id_tabla', tablaIds).orderBy('orden', 'asc').orderBy('id', 'asc');
   };
 
   const cargarTablas = async (proyectoId) => {
@@ -185,12 +185,13 @@ module.exports = (socket, io) => {
 
         const campos = Array.isArray(item.campos)
           ? item.campos
-              .map((campo) => {
+              .map((campo, index) => {
                 const nombreCampo = String(campo?.nombre ?? '').trim();
                 if (!nombreCampo) return null;
                 return {
                   nombre: nombreCampo,
                   descripcion: campo?.descripcion ? String(campo.descripcion).trim() : null,
+                  orden: Number.isNaN(Number(campo?.orden)) ? index : Number(campo.orden),
                 };
               })
               .filter(Boolean)
@@ -204,7 +205,7 @@ module.exports = (socket, io) => {
   const insertarCamposTabla = async (proyectoId, tablaId, campos) => {
     if (!Array.isArray(campos) || !tablaId) return;
     const registros = campos
-      .map((item) => {
+      .map((item, index) => {
         const nombre = String(item?.nombre ?? '').trim();
         if (!nombre) return null;
         return {
@@ -212,6 +213,7 @@ module.exports = (socket, io) => {
           id_tabla: tablaId,
           nombre,
           descripcion: item?.descripcion ? String(item.descripcion).trim() : null,
+          orden: Number.isNaN(Number(item?.orden)) ? index : Number(item.orden),
         };
       })
       .filter(Boolean);

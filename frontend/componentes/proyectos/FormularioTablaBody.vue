@@ -12,12 +12,21 @@
           <div v-if="!campos.length" class="text-muted">Sin campos definidos.</div>
           <div v-else class="list-group">
             <div
-              v-for="(campo, index) in campos"
+              v-for="(campo, index) in camposSorted"
               :key="campo.id ?? index"
               class="list-group-item"
             >
               <div class="row g-2 align-items-center">
-                <div class="col-12 col-lg-5">
+                <div class="col-12 col-lg-2">
+                  <input
+                    v-model.number="campo.orden"
+                    type="number"
+                    class="form-control"
+                    placeholder="Orden"
+                    min="0"
+                  />
+                </div>
+                <div class="col-12 col-lg-4">
                   <input
                     v-model="campo.nombre"
                     type="text"
@@ -25,7 +34,7 @@
                     placeholder="Nombre del campo"
                   />
                 </div>
-                <div class="col-12 col-lg-5">
+                <div class="col-12 col-lg-4">
                   <input
                     v-model="campo.descripcion"
                     type="text"
@@ -34,7 +43,7 @@
                   />
                 </div>
                 <div class="col-12 col-lg-2 d-grid">
-                  <button type="button" class="btn btn-sm btn-outline-danger" @click="quitarCampo(index)">
+                  <button type="button" class="btn btn-sm btn-outline-danger" @click="quitarCampo(campo.id)">
                     Eliminar
                   </button>
                 </div>
@@ -84,11 +93,24 @@ const campos = computed({
   },
 });
 
+const camposSorted = computed(() => {
+  return [...campos.value].sort((a, b) => {
+    const ordenA = Number(a?.orden ?? 0);
+    const ordenB = Number(b?.orden ?? 0);
+    if (ordenA !== ordenB) return ordenA - ordenB;
+    return (a.id ?? 0) - (b.id ?? 0);
+  });
+});
+
 function agregarCampo() {
-  campos.value.push({ id: generarIdTemporal(), nombre: '', descripcion: '' });
+  const maxOrden = campos.value.reduce((max, campo) => {
+    const orden = Number(campo?.orden ?? 0);
+    return Number.isNaN(orden) ? max : Math.max(max, orden);
+  }, -1);
+  campos.value.push({ id: generarIdTemporal(), nombre: '', descripcion: '', orden: maxOrden + 1 });
 }
 
-function quitarCampo(index) {
-  campos.value.splice(index, 1);
+function quitarCampo(campoId) {
+  campos.value = campos.value.filter((campo) => campo.id !== campoId);
 }
 </script>

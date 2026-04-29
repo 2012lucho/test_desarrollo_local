@@ -48,3 +48,11 @@
 - id integer pk autoincremental
 - nombre varchar (100) notnull
 - proyecto_id integer fk referencias proyectos(id) notnull
+
+## campos_tabla
+- id integer pk autoincremental
+- nombre varchar (100) notnull
+- descripcion text null
+- proyecto_id integer fk referencias proyectos(id) notnull
+- id_tabla integer fk referencias tablas_db_proyectos(id) notnull
+- orden integer notnull default 0
