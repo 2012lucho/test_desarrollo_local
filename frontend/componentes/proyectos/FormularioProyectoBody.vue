@@ -59,10 +59,7 @@
             </li>
             <li v-if="!tablas.length" class="list-group-item text-muted">Sin tablas aún.</li>
           </ul>
-          <div class="input-group">
-            <input type="text" class="form-control" placeholder="Nombre de la tabla" v-model="nuevaTablaNombre" />
-            <button type="button" class="btn btn-sm btn-outline-primary" @click="agregarTabla">Agregar tabla</button>
-          </div>
+          <button type="button" class="btn btn-sm btn-outline-primary" @click="abrirDetalleTabla()">Agregar tabla</button>
         </div>
       </div>
     </div>
@@ -82,6 +79,9 @@ import FormularioComponenteFooter from './FormularioComponenteFooter.vue';
 import FormularioSubproyectoHeader from './FormularioSubproyectoHeader.vue';
 import FormularioSubproyectoBody from './FormularioSubproyectoBody.vue';
 import FormularioSubproyectoFooter from './FormularioSubproyectoFooter.vue';
+import FormularioTablaHeader from './FormularioTablaHeader.vue';
+import FormularioTablaBody from './FormularioTablaBody.vue';
+import FormularioTablaFooter from './FormularioTablaFooter.vue';
 
 const props = defineProps(['form', 'mensajeError']);
 const { mostrarModal } = useModal();
@@ -143,22 +143,51 @@ const tablas = computed({
   },
 });
 
-const nuevaTablaNombre = ref('');
+function abrirDetalleTabla(tabla = null, index = null) {
+  const tablaTemp = ref(
+    tabla
+      ? { id: tabla.id ?? generarIdTemporal(), nombre: tabla.nombre ?? '' }
+      : { id: generarIdTemporal(), nombre: '' }
+  );
+  const mensajeErrorTabla = ref('');
+  let cerrarDetalle = null;
 
-function agregarTabla() {
-  const nombreTrim = String(nuevaTablaNombre.value ?? '').trim();
-  if (!nombreTrim) return;
-  tablas.value.push({ id: generarIdTemporal(), nombre: nombreTrim });
-  nuevaTablaNombre.value = '';
+  function guardarTabla() {
+    mensajeErrorTabla.value = '';
+    const nombreTrim = String(tablaTemp.value.nombre ?? '').trim();
+    if (!nombreTrim) {
+      mensajeErrorTabla.value = 'Nombre de la tabla es requerido';
+      return;
+    }
+
+    const tablaGuardada = {
+      id: tablaTemp.value.id,
+      nombre: nombreTrim,
+    };
+
+    if (index !== null && index !== undefined && index >= 0) {
+      tablas.value[index] = tablaGuardada;
+    } else {
+      tablas.value.push(tablaGuardada);
+    }
+
+    if (typeof cerrarDetalle === 'function') {
+      cerrarDetalle();
+    }
+  }
+
+  cerrarDetalle = mostrarModal({
+    header: FormularioTablaHeader,
+    body: FormularioTablaBody,
+    footer: FormularioTablaFooter,
+    headerProps: { tabla: tablaTemp },
+    bodyProps: { tabla: tablaTemp, mensajeError: mensajeErrorTabla },
+    footerProps: { onGuardar: guardarTabla, onCerrar: () => cerrarDetalle && cerrarDetalle() },
+  });
 }
 
 function editarTabla(index) {
-  const nombreActual = tablas.value[index]?.nombre ?? '';
-  const nombreNuevo = window.prompt('Editar nombre de tabla', nombreActual);
-  if (nombreNuevo === null) return;
-  const nombreTrim = String(nombreNuevo).trim();
-  if (!nombreTrim) return;
-  tablas.value[index].nombre = nombreTrim;
+  abrirDetalleTabla(tablas.value[index], index);
 }
 
 function quitarTabla(index) {
