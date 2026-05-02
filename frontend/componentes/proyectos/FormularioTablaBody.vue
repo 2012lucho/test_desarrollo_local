@@ -16,36 +16,63 @@
               :key="campo.id ?? index"
               class="list-group-item"
             >
-              <div class="row g-2 align-items-center">
-                <div class="col-12 col-lg-2">
+              <div class="row g-2 align-items-center mb-2">
+                <div class="col-6 col-lg-1">
                   <input
                     v-model.number="campo.orden"
                     type="number"
-                    class="form-control"
+                    class="form-control form-control-sm"
                     placeholder="Orden"
                     min="0"
                   />
                 </div>
-                <div class="col-12 col-lg-4">
+                <div class="col-6 col-lg-3">
                   <input
                     v-model="campo.nombre"
                     type="text"
-                    class="form-control"
+                    class="form-control form-control-sm"
                     placeholder="Nombre del campo"
                   />
                 </div>
-                <div class="col-12 col-lg-4">
+                <div class="col-6 col-lg-3">
+                  <input
+                    v-model="campo.tipo"
+                    type="text"
+                    class="form-control form-control-sm"
+                    placeholder="Tipo (ej: string, integer)"
+                  />
+                </div>
+                <div class="col-6 col-lg-3">
                   <input
                     v-model="campo.descripcion"
                     type="text"
-                    class="form-control"
+                    class="form-control form-control-sm"
                     placeholder="Descripción (opcional)"
                   />
                 </div>
-                <div class="col-12 col-lg-2 d-grid">
+                <div class="col-12 col-lg-2 d-flex align-items-center justify-content-between gap-2">
+                  <div class="form-check mb-0">
+                    <input
+                      v-model="campo.nulo"
+                      type="checkbox"
+                      class="form-check-input"
+                      :id="'nulo-' + (campo.id ?? index)"
+                    />
+                    <label class="form-check-label" :for="'nulo-' + (campo.id ?? index)">Nulo</label>
+                  </div>
                   <button type="button" class="btn btn-sm btn-outline-danger" @click="quitarCampo(campo.id)">
                     Eliminar
                   </button>
+                </div>
+              </div>
+              <div class="row g-2">
+                <div class="col-12">
+                  <textarea
+                    v-model="campo.config"
+                    class="form-control form-control-sm font-monospace"
+                    placeholder='Config JSON (ej: {"longitud": 255})'
+                    rows="2"
+                  />
                 </div>
               </div>
             </div>
@@ -107,7 +134,7 @@ function agregarCampo() {
     const orden = Number(campo?.orden ?? 0);
     return Number.isNaN(orden) ? max : Math.max(max, orden);
   }, -1);
-  campos.value.push({ id: generarIdTemporal(), nombre: '', descripcion: '', orden: maxOrden + 1 });
+  campos.value.push({ id: generarIdTemporal(), nombre: '', tipo: '', descripcion: '', nulo: false, config: '{}', orden: maxOrden + 1 });
 }
 
 function quitarCampo(campoId) {
