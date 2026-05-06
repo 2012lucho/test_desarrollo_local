@@ -11,8 +11,8 @@ exports.up = function(knex) {
       table.increments('id').primary();
       table.string('nombre', 100).notNullable();
       table.text('descripcion').nullable();
-      table.integer('proyecto_id').notNullable().references('id').inTable('proyectos').onDelete('CASCADE');
-      table.integer('id_tabla').notNullable().references('id').inTable('tablas_db_proyectos').onDelete('CASCADE');
+      table.integer('proyecto_id').unsigned().notNullable().references('id').inTable('proyectos').onDelete('CASCADE');
+      table.integer('id_tabla').unsigned().notNullable().references('id').inTable('tablas_db_proyectos').onDelete('CASCADE');
     });
   });
 };

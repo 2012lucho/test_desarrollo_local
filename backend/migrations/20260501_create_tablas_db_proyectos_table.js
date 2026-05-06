@@ -9,7 +9,7 @@ exports.up = function(knex) {
     return knex.schema.createTable('tablas_db_proyectos', (table) => {
       table.increments('id').primary();
       table.string('nombre', 100).notNullable();
-      table.integer('proyecto_id').notNullable().references('id').inTable('proyectos').onDelete('CASCADE');
+      table.integer('proyecto_id').unsigned().notNullable().references('id').inTable('proyectos').onDelete('CASCADE');
     });
   });
 };

@@ -8,7 +8,7 @@ exports.up = function(knex) {
     }
     return knex.schema.createTable('componentes', (table) => {
       table.increments('id').primary();
-      table.integer('proyecto_id').notNullable().references('id').inTable('proyectos').onDelete('CASCADE');
+      table.integer('proyecto_id').unsigned().notNullable().references('id').inTable('proyectos').onDelete('CASCADE');
       table.string('nombre', 100).notNullable();
       table.string('descripcion', 255).notNullable();
       table.json('config').notNullable();
