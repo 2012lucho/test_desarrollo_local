@@ -9,6 +9,8 @@ exports.up = function(knex) {
     return knex.schema.createTable('tecnologias', (table) => {
       table.increments('id').primary();
       table.string('nombre', 100).notNullable();
+      table.string('tipo', 50).notNullable().defaultTo('lenguaje');
+      table.string('tipo_aplicacion', 50).notNullable().defaultTo('backend');
       table.dateTime('creado_el').notNullable().defaultTo(knex.fn.now());
       table.dateTime('actualizado_el').notNullable().defaultTo(knex.fn.now());
     });

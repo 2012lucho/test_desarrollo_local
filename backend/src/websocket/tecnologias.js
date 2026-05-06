@@ -40,12 +40,20 @@ module.exports = (socket, io) => {
   socket.on('tecnologias:create', async (payload, callback) => {
     const nombre = String(payload?.nombre || '').trim();
     const color = String(payload?.color || '').trim() || null;
+    const tipo = String(payload?.tipo || 'lenguaje').trim() || 'lenguaje';
+    const tipo_aplicacion = String(payload?.tipo_aplicacion || 'backend').trim() || 'backend';
     if (!nombre) {
       return safeCallback(callback, { ok: false, error: 'El nombre es requerido' });
     }
+    if (!['lenguaje', 'framework', 'servicio', 'libreria'].includes(tipo)) {
+      return safeCallback(callback, { ok: false, error: 'Tipo de tecnología inválido' });
+    }
+    if (!['frontend', 'backend', 'base_datos', 'backend_y_frontend'].includes(tipo_aplicacion)) {
+      return safeCallback(callback, { ok: false, error: 'Tipo de aplicación inválido' });
+    }
 
     try {
-      const [id] = await db('tecnologias').insert({ nombre, color });
+      const [id] = await db('tecnologias').insert({ nombre, color, tipo, tipo_aplicacion });
       const tecnologia = await db('tecnologias').where({ id }).first();
       io.emit('tecnologias:changed', { action: 'created', tecnologia });
       safeCallback(callback, { ok: true, data: tecnologia });
@@ -59,6 +67,8 @@ module.exports = (socket, io) => {
     const id = Number(payload?.id);
     const nombre = String(payload?.nombre || '').trim();
     const color = String(payload?.color || '').trim() || null;
+    const tipo = String(payload?.tipo || 'lenguaje').trim() || 'lenguaje';
+    const tipo_aplicacion = String(payload?.tipo_aplicacion || 'backend').trim() || 'backend';
 
     if (!id || id <= 0) {
       return safeCallback(callback, { ok: false, error: 'Id inválido para actualizar tecnología' });
@@ -66,9 +76,15 @@ module.exports = (socket, io) => {
     if (!nombre) {
       return safeCallback(callback, { ok: false, error: 'El nombre es requerido' });
     }
+    if (!['lenguaje', 'framework', 'servicio', 'libreria'].includes(tipo)) {
+      return safeCallback(callback, { ok: false, error: 'Tipo de tecnología inválido' });
+    }
+    if (!['frontend', 'backend', 'base_datos', 'backend_y_frontend'].includes(tipo_aplicacion)) {
+      return safeCallback(callback, { ok: false, error: 'Tipo de aplicación inválido' });
+    }
 
     try {
-      const affected = await db('tecnologias').where({ id }).update({ nombre, color, actualizado_el: new Date() });
+      const affected = await db('tecnologias').where({ id }).update({ nombre, color, tipo, tipo_aplicacion, actualizado_el: new Date() });
       if (!affected) {
         return safeCallback(callback, { ok: false, error: 'Tecnología no encontrada', status: 404 });
       }

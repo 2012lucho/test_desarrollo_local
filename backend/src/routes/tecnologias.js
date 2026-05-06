@@ -34,12 +34,20 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   const nombre = String(req.body?.nombre || '').trim();
   const color = String(req.body?.color || '').trim() || null;
+  const tipo = String(req.body?.tipo || 'lenguaje').trim() || 'lenguaje';
+  const tipo_aplicacion = String(req.body?.tipo_aplicacion || 'backend').trim() || 'backend';
   if (!nombre) {
     return res.status(400).json({ ok: false, error: 'El nombre es requerido' });
   }
+  if (!['lenguaje', 'framework', 'libreria'].includes(tipo)) {
+    return res.status(400).json({ ok: false, error: 'Tipo de tecnología inválido' });
+  }
+  if (!['frontend', 'backend', 'base_datos', 'backend_y_frontend'].includes(tipo_aplicacion)) {
+    return res.status(400).json({ ok: false, error: 'Tipo de aplicación inválido' });
+  }
 
   try {
-    const [id] = await db('tecnologias').insert({ nombre, color });
+    const [id] = await db('tecnologias').insert({ nombre, color, tipo, tipo_aplicacion });
     const tecnologia = await db('tecnologias').where({ id }).first();
     res.status(201).json({ ok: true, data: tecnologia });
   } catch (error) {
@@ -52,6 +60,8 @@ router.put('/:id', async (req, res) => {
   const id = Number(req.params.id);
   const nombre = String(req.body?.nombre || '').trim();
   const color = String(req.body?.color || '').trim() || null;
+  const tipo = String(req.body?.tipo || 'lenguaje').trim() || 'lenguaje';
+  const tipo_aplicacion = String(req.body?.tipo_aplicacion || 'backend').trim() || 'backend';
 
   if (!id || id <= 0) {
     return res.status(400).json({ ok: false, error: 'Id de tecnología inválido' });
@@ -59,9 +69,15 @@ router.put('/:id', async (req, res) => {
   if (!nombre) {
     return res.status(400).json({ ok: false, error: 'El nombre es requerido' });
   }
+  if (!['lenguaje', 'framework', 'servicio'].includes(tipo)) {
+    return res.status(400).json({ ok: false, error: 'Tipo de tecnología inválido' });
+  }
+  if (!['frontend', 'backend', 'base_datos', 'backend_y_frontend'].includes(tipo_aplicacion)) {
+    return res.status(400).json({ ok: false, error: 'Tipo de aplicación inválido' });
+  }
 
   try {
-    const affected = await db('tecnologias').where({ id }).update({ nombre, color, actualizado_el: new Date() });
+    const affected = await db('tecnologias').where({ id }).update({ nombre, color, tipo, tipo_aplicacion, actualizado_el: new Date() });
     if (!affected) {
       return res.status(404).json({ ok: false, error: 'Tecnología no encontrada' });
     }
