@@ -8,7 +8,7 @@
         </div>
         <div class="mb-3">
           <label class="form-label">Descripción</label>
-          <input v-model="descripcion" type="text" class="form-control" maxlength="255" />
+          <textarea v-model="descripcion" class="form-control" rows="3" maxlength="1024"></textarea>
         </div>
         <div class="mb-3">
           <label class="form-label">Config JSON</label>

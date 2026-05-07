@@ -158,6 +158,7 @@ function abrirFormulario(proyecto) {
             .map((item) => ({
               id: item?.id,
               nombre: String(item?.nombre ?? '').trim(),
+              descripcion: item?.descripcion ? String(item.descripcion).trim() : '',
               tipo: String(item?.tipo || 'backend').trim() || 'backend',
               tecnologias: Array.isArray(item?.tecnologias)
                 ? item.tecnologias.map((id) => Number(id)).filter((id) => id > 0)
@@ -205,6 +206,7 @@ function abrirFormulario(proyecto) {
             ? resp.data.subproyectos.map((item) => ({
                 id: item.id,
                 nombre: item.nombre,
+                descripcion: item.descripcion ?? '',
                 tipo: item.tipo ?? 'backend',
                 tecnologias: Array.isArray(item.tecnologias)
                   ? item.tecnologias.map((t) => Number(t.id)).filter((id) => id > 0)

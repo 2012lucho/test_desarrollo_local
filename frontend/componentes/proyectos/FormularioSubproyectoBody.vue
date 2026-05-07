@@ -6,6 +6,10 @@
           <label class="form-label">Nombre</label>
           <input v-model="nombre" type="text" class="form-control" maxlength="100" />
         </div>
+        <div class="mb-3">
+          <label class="form-label">Descripción</label>
+          <textarea v-model="descripcion" class="form-control" rows="3" maxlength="512"></textarea>
+        </div>
       </div>
 
       <div class="col-12 col-lg-6">
@@ -181,6 +185,15 @@ const tipoSubproyecto = computed({
   set: (value) => {
     if (props.subproyecto?.value) {
       props.subproyecto.value.tipo = value;
+    }
+  },
+});
+
+const descripcion = computed({
+  get: () => props.subproyecto?.value?.descripcion ?? '',
+  set: (value) => {
+    if (props.subproyecto?.value) {
+      props.subproyecto.value.descripcion = value;
     }
   },
 });

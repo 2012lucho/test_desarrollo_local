@@ -18,6 +18,7 @@
 - id integer pk autoincremental
 - proyecto_id integer fk referencias proyectos(id) notnull
 - nombre varchar (100) notnull
+- descripcion varchar (512) notnull default ''
 - creado_el datetime notnull (default now)
 - actualizado_el datetime notnull (default now)
 
@@ -25,7 +26,7 @@
 - id integer pk autoincremental
 - proyecto_id integer fk referencias proyectos(id) notnull
 - nombre varchar (100) notnull
-- descripcion varchar (255) notnull
+- descripcion varchar (1024) notnull
 - config json notnull
 - creado_el datetime notnull (default now)
 - actualizado_el datetime notnull (default now)

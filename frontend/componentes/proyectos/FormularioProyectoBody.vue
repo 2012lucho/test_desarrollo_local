@@ -222,6 +222,7 @@ function abrirDetalleSubproyecto(subproyecto = null, index = null) {
       ? {
           id: subproyecto.id ?? generarIdTemporal(),
           nombre: subproyecto.nombre ?? '',
+          descripcion: subproyecto.descripcion ?? '',
           tipo: subproyecto.tipo ?? 'backend',
           tecnologias: Array.isArray(subproyecto.tecnologias)
             ? [...subproyecto.tecnologias]
@@ -233,7 +234,7 @@ function abrirDetalleSubproyecto(subproyecto = null, index = null) {
                 .map((item) => item.id)
                 .filter((id) => id !== undefined),
         }
-      : { id: generarIdTemporal(), nombre: '', tipo: 'backend', tecnologias: [], componentes: [] }
+      : { id: generarIdTemporal(), nombre: '', descripcion: '', tipo: 'backend', tecnologias: [], componentes: [] }
   );
   const mensajeErrorSubproyecto = ref('');
   let cerrarDetalle = null;
@@ -250,6 +251,7 @@ function abrirDetalleSubproyecto(subproyecto = null, index = null) {
     const subproyectoGuardado = {
       id: subproyectoTemp.value.id,
       nombre: nombreTrim,
+      descripcion: String(subproyectoTemp.value.descripcion ?? '').trim(),
       tipo: subproyectoTemp.value.tipo,
       tecnologias: Array.isArray(subproyectoTemp.value.tecnologias)
         ? Array.from(new Set(subproyectoTemp.value.tecnologias.map((id) => Number(id)).filter((id) => id > 0)))

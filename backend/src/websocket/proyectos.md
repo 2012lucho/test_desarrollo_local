@@ -9,8 +9,8 @@ Inyectado en `backend/src/index.js` dentro de `io.on('connection')`.
 |---|---|---|
 | `proyectos:list` | (sin payload) | Devuelve todos los proyectos ordenados por id asc |
 | `proyectos:get` | `{ id }` | Devuelve un proyecto por id, incluyendo sus subproyectos y sus componentes |
-| `proyectos:create` | `{ nombre, descripcion, subproyectos?: Array<{ id?: number, nombre: string, tecnologias?: number[] }>, componentes?: Array<{ nombre: string, descripcion?: string, config?: object | string, subproyectos?: number[] }>, tablas?: Array<{ nombre: string, campos?: Array<{ nombre: string, descripcion?: string }> }> }` | Crea un nuevo proyecto con subproyectos, tecnologías relacionadas, componentes, tablas y campos de tabla |
-| `proyectos:update` | `{ id, nombre?, descripcion?, subproyectos?: Array<{ id?: number, nombre: string, tecnologias?: number[] }>, componentes?: Array<{ nombre: string, descripcion?: string, config?: object | string, subproyectos?: number[] }>, tablas?: Array<{ nombre: string, campos?: Array<{ nombre: string, descripcion?: string }> }> }` | Actualiza un proyecto y reemplaza sus subproyectos, las tecnologías relacionadas, sus componentes, tablas y campos de tabla |
+| `proyectos:create` | `{ nombre, descripcion, subproyectos?: Array<{ id?: number, nombre: string, descripcion?: string, tipo?: string, tecnologias?: number[] }>, componentes?: Array<{ nombre: string, descripcion?: string, config?: object | string, subproyectos?: number[] }>, tablas?: Array<{ nombre: string, campos?: Array<{ nombre: string, descripcion?: string }> }> }` | Crea un nuevo proyecto con subproyectos, tecnologías relacionadas, componentes, tablas y campos de tabla |
+| `proyectos:update` | `{ id, nombre?, descripcion?, subproyectos?: Array<{ id?: number, nombre: string, descripcion?: string, tipo?: string, tecnologias?: number[] }>, componentes?: Array<{ nombre: string, descripcion?: string, config?: object | string, subproyectos?: number[] }>, tablas?: Array<{ nombre: string, campos?: Array<{ nombre: string, descripcion?: string }> }> }` | Actualiza un proyecto y reemplaza sus subproyectos, las tecnologías relacionadas, sus componentes, tablas y campos de tabla |
 | `proyectos:delete` | `{ id }` | Elimina un proyecto junto a sus subproyectos y componentes |
 
 ## Respuestas (callback ack)
@@ -39,6 +39,7 @@ Tabla `subproyectos` via Knex (ver `backend/migrations/20260415_create_subproyec
 - `id` integer pk autoincremental
 - `proyecto_id` integer fk referencias `proyectos.id` notnull
 - `nombre` varchar(100) notnull
+- `descripcion` varchar(512) notnull default ''
 - `creado_el` datetime notnull default now
 - `actualizado_el` datetime notnull default now
 
@@ -52,7 +53,7 @@ Tabla `componentes` via Knex (ver `backend/migrations/20260416_create_componente
 - `id` integer pk autoincremental
 - `proyecto_id` integer fk referencias `proyectos.id` notnull
 - `nombre` varchar(100) notnull
-- `descripcion` varchar(255) notnull
+- `descripcion` varchar(1024) notnull
 - `config` json notnull
 - `creado_el` datetime notnull default now
 - `actualizado_el` datetime notnull default now

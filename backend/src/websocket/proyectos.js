@@ -6,8 +6,8 @@ const db = require('../db');
  * Eventos entrantes (cliente -> servidor):
  * - proyectos:list
  * - proyectos:get { id }
- * - proyectos:create { nombre, descripcion, subproyectos?: Array<{ id?, nombre, tecnologias?: number[] }>, tablas?: Array<{ id?, nombre, campos?: Array<{ nombre: string, descripcion?: string, orden?: number, nulo?: boolean, clave_primaria?: boolean, autoincremental?: boolean, config?: object | string }> }>, componentes?: Array<{ nombre, descripcion?, config?: object | string, subproyectos?: number[], tablas?: number[] }> }
- * - proyectos:update { id, nombre?, descripcion?, subproyectos?: Array<{ id?, nombre, tecnologias?: number[] }>, tablas?: Array<{ id?, nombre, campos?: Array<{ nombre: string, descripcion?: string, orden?: number, nulo?: boolean, clave_primaria?: boolean, autoincremental?: boolean, config?: object | string }> }>, componentes?: Array<{ nombre, descripcion?, config?: object | string, subproyectos?: number[], tablas?: number[] }> }
+ * - proyectos:create { nombre, descripcion, subproyectos?: Array<{ id?, nombre, descripcion?: string, tipo?: string, tecnologias?: number[] }>, tablas?: Array<{ id?, nombre, campos?: Array<{ nombre: string, descripcion?: string, orden?: number, nulo?: boolean, clave_primaria?: boolean, autoincremental?: boolean, config?: object | string }> }>, componentes?: Array<{ nombre, descripcion?, config?: object | string, subproyectos?: number[], tablas?: number[] }> }
+ * - proyectos:update { id, nombre?, descripcion?, subproyectos?: Array<{ id?, nombre, descripcion?: string, tipo?: string, tecnologias?: number[] }>, tablas?: Array<{ id?, nombre, campos?: Array<{ nombre: string, descripcion?: string, orden?: number, nulo?: boolean, clave_primaria?: boolean, autoincremental?: boolean, config?: object | string }> }>, componentes?: Array<{ nombre, descripcion?, config?: object | string, subproyectos?: number[], tablas?: number[] }> }
  * - proyectos:delete { id }
  *
  * Respuestas por callback de ack o emisión general:
@@ -139,7 +139,12 @@ module.exports = (socket, io) => {
       const registro = prepararSubproyectoData(item);
       if (!registro) continue;
       const originalKey = normalizeKey(item?.id ?? item?.tempId);
-      const [subproyectoId] = await db('subproyectos').insert({ proyecto_id: proyectoId, nombre: registro.nombre, tipo: registro.tipo });
+      const [subproyectoId] = await db('subproyectos').insert({
+        proyecto_id: proyectoId,
+        nombre: registro.nombre,
+        descripcion: registro.descripcion,
+        tipo: registro.tipo,
+      });
       if (registro.tecnologias.length) {
         const relaciones = registro.tecnologias.map((tecnologia_id) => ({
           subproyecto_id: subproyectoId,
@@ -198,11 +203,12 @@ module.exports = (socket, io) => {
     if (!nombre) return null;
 
       const tipo = String(item.tipo || 'backend').trim() || 'backend';
+      const descripcion = String(item.descripcion ?? '').trim();
       const tecnologias = Array.isArray(item.tecnologias)
         ? Array.from(new Set(item.tecnologias.map((id) => Number(id)).filter((id) => id > 0)))
         : [];
 
-      return { nombre, tipo, tecnologias };
+      return { nombre, tipo, descripcion, tecnologias };
   };
 
   const insertarCamposTabla = async (proyectoId, tablaId, campos) => {
