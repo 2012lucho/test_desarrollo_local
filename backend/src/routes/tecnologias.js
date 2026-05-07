@@ -36,6 +36,7 @@ router.post('/', async (req, res) => {
   const color = String(req.body?.color || '').trim() || null;
   const tipo = String(req.body?.tipo || 'lenguaje').trim() || 'lenguaje';
   const tipo_aplicacion = String(req.body?.tipo_aplicacion || 'backend').trim() || 'backend';
+  const notas_uso = String(req.body?.notas_uso || '').trim().slice(0, 512);
   if (!nombre) {
     return res.status(400).json({ ok: false, error: 'El nombre es requerido' });
   }
@@ -47,7 +48,7 @@ router.post('/', async (req, res) => {
   }
 
   try {
-    const [id] = await db('tecnologias').insert({ nombre, color, tipo, tipo_aplicacion });
+    const [id] = await db('tecnologias').insert({ nombre, color, tipo, tipo_aplicacion, notas_uso });
     const tecnologia = await db('tecnologias').where({ id }).first();
     res.status(201).json({ ok: true, data: tecnologia });
   } catch (error) {
@@ -62,6 +63,7 @@ router.put('/:id', async (req, res) => {
   const color = String(req.body?.color || '').trim() || null;
   const tipo = String(req.body?.tipo || 'lenguaje').trim() || 'lenguaje';
   const tipo_aplicacion = String(req.body?.tipo_aplicacion || 'backend').trim() || 'backend';
+  const notas_uso = String(req.body?.notas_uso || '').trim().slice(0, 512);
 
   if (!id || id <= 0) {
     return res.status(400).json({ ok: false, error: 'Id de tecnología inválido' });
@@ -77,7 +79,7 @@ router.put('/:id', async (req, res) => {
   }
 
   try {
-    const affected = await db('tecnologias').where({ id }).update({ nombre, color, tipo, tipo_aplicacion, actualizado_el: new Date() });
+    const affected = await db('tecnologias').where({ id }).update({ nombre, color, tipo, tipo_aplicacion, notas_uso, actualizado_el: new Date() });
     if (!affected) {
       return res.status(404).json({ ok: false, error: 'Tecnología no encontrada' });
     }

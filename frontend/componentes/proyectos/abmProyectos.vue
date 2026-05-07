@@ -136,6 +136,10 @@ function abrirFormulario(proyecto) {
                   .map((campo) => ({
                     nombre: String(campo?.nombre ?? '').trim(),
                     descripcion: campo?.descripcion ? String(campo.descripcion).trim() : null,
+                    orden: Number.isNaN(Number(campo?.orden)) ? 0 : Number(campo.orden),
+                    nulo: Boolean(campo?.nulo),
+                    clave_primaria: Boolean(campo?.clave_primaria),
+                    config: campo?.config ?? '{}',
                   }))
                   .filter((campo) => campo.nombre)
               : [],
@@ -152,6 +156,7 @@ function abrirFormulario(proyecto) {
             .map((item) => ({
               id: item?.id,
               nombre: String(item?.nombre ?? '').trim(),
+              tipo: String(item?.tipo || 'backend').trim() || 'backend',
               tecnologias: Array.isArray(item?.tecnologias)
                 ? item.tecnologias.map((id) => Number(id)).filter((id) => id > 0)
                 : [],
@@ -198,6 +203,7 @@ function abrirFormulario(proyecto) {
             ? resp.data.subproyectos.map((item) => ({
                 id: item.id,
                 nombre: item.nombre,
+                tipo: item.tipo ?? 'backend',
                 tecnologias: Array.isArray(item.tecnologias)
                   ? item.tecnologias.map((t) => Number(t.id)).filter((id) => id > 0)
                   : [],
@@ -213,6 +219,9 @@ function abrirFormulario(proyecto) {
                       nombre: campo.nombre,
                       descripcion: campo.descripcion || null,
                       orden: Number(campo.orden ?? 0),
+                      nulo: Boolean(campo.nulo),
+                      clave_primaria: Boolean(campo.clave_primaria),
+                      config: campo?.config ?? '{}',
                     }))
                   : [],
               }))

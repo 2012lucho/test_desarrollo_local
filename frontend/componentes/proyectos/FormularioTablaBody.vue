@@ -34,7 +34,7 @@
                     placeholder="Nombre del campo"
                   />
                 </div>
-                <div class="col-6 col-lg-3">
+                <div class="col-6 col-lg-2">
                   <input
                     v-model="campo.tipo"
                     type="text"
@@ -42,7 +42,7 @@
                     placeholder="Tipo (ej: string, integer)"
                   />
                 </div>
-                <div class="col-6 col-lg-3">
+                <div class="col-6 col-lg-2">
                   <input
                     v-model="campo.descripcion"
                     type="text"
@@ -50,7 +50,7 @@
                     placeholder="Descripción (opcional)"
                   />
                 </div>
-                <div class="col-12 col-lg-2 d-flex align-items-center justify-content-between gap-2">
+                <div class="col-6 col-lg-2 d-flex align-items-center">
                   <div class="form-check mb-0">
                     <input
                       v-model="campo.nulo"
@@ -60,6 +60,19 @@
                     />
                     <label class="form-check-label" :for="'nulo-' + (campo.id ?? index)">Nulo</label>
                   </div>
+                </div>
+                <div class="col-6 col-lg-2 d-flex align-items-center">
+                  <div class="form-check mb-0">
+                    <input
+                      v-model="campo.clave_primaria"
+                      type="checkbox"
+                      class="form-check-input"
+                      :id="'pk-' + (campo.id ?? index)"
+                    />
+                    <label class="form-check-label" :for="'pk-' + (campo.id ?? index)">PK</label>
+                  </div>
+                </div>
+                <div class="col-12 col-lg-2 d-flex align-items-center justify-content-end">
                   <button type="button" class="btn btn-sm btn-outline-danger" @click="quitarCampo(campo.id)">
                     Eliminar
                   </button>
@@ -134,7 +147,7 @@ function agregarCampo() {
     const orden = Number(campo?.orden ?? 0);
     return Number.isNaN(orden) ? max : Math.max(max, orden);
   }, -1);
-  campos.value.push({ id: generarIdTemporal(), nombre: '', tipo: '', descripcion: '', nulo: false, config: '{}', orden: maxOrden + 1 });
+  campos.value.push({ id: generarIdTemporal(), nombre: '', tipo: '', descripcion: '', nulo: false, clave_primaria: false, config: '{}', orden: maxOrden + 1 });
 }
 
 function quitarCampo(campoId) {

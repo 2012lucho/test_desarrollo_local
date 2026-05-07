@@ -42,6 +42,7 @@ module.exports = (socket, io) => {
     const color = String(payload?.color || '').trim() || null;
     const tipo = String(payload?.tipo || 'lenguaje').trim() || 'lenguaje';
     const tipo_aplicacion = String(payload?.tipo_aplicacion || 'backend').trim() || 'backend';
+    const notas_uso = String(payload?.notas_uso || '').trim().slice(0, 512);
     if (!nombre) {
       return safeCallback(callback, { ok: false, error: 'El nombre es requerido' });
     }
@@ -53,7 +54,7 @@ module.exports = (socket, io) => {
     }
 
     try {
-      const [id] = await db('tecnologias').insert({ nombre, color, tipo, tipo_aplicacion });
+      const [id] = await db('tecnologias').insert({ nombre, color, tipo, tipo_aplicacion, notas_uso });
       const tecnologia = await db('tecnologias').where({ id }).first();
       io.emit('tecnologias:changed', { action: 'created', tecnologia });
       safeCallback(callback, { ok: true, data: tecnologia });
@@ -69,6 +70,7 @@ module.exports = (socket, io) => {
     const color = String(payload?.color || '').trim() || null;
     const tipo = String(payload?.tipo || 'lenguaje').trim() || 'lenguaje';
     const tipo_aplicacion = String(payload?.tipo_aplicacion || 'backend').trim() || 'backend';
+    const notas_uso = String(payload?.notas_uso || '').trim().slice(0, 512);
 
     if (!id || id <= 0) {
       return safeCallback(callback, { ok: false, error: 'Id inválido para actualizar tecnología' });
@@ -84,7 +86,7 @@ module.exports = (socket, io) => {
     }
 
     try {
-      const affected = await db('tecnologias').where({ id }).update({ nombre, color, tipo, tipo_aplicacion, actualizado_el: new Date() });
+      const affected = await db('tecnologias').where({ id }).update({ nombre, color, tipo, tipo_aplicacion, notas_uso, actualizado_el: new Date() });
       if (!affected) {
         return safeCallback(callback, { ok: false, error: 'Tecnología no encontrada', status: 404 });
       }

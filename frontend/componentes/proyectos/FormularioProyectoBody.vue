@@ -17,7 +17,10 @@
           <label class="form-label">Subproyectos</label>
           <ul class="list-group mb-2">
             <li v-for="(sub, index) in subproyectos" :key="index" class="list-group-item d-flex justify-content-between align-items-center">
-              <span class="flex-grow-1">{{ sub.nombre || 'Subproyecto sin nombre' }}</span>
+              <span class="flex-grow-1">
+                {{ sub.nombre || 'Subproyecto sin nombre' }}
+                <small class="text-muted">({{ sub.tipo || 'backend' }})</small>
+              </span>
               <div class="btn-group">
                 <button type="button" class="btn btn-sm btn-outline-primary" @click="abrirDetalleSubproyecto(sub, index)">Ver detalles</button>
                 <button type="button" class="btn btn-sm btn-outline-danger" @click="quitarSubproyecto(index)">Eliminar</button>
@@ -213,6 +216,7 @@ function abrirDetalleSubproyecto(subproyecto = null, index = null) {
       ? {
           id: subproyecto.id ?? generarIdTemporal(),
           nombre: subproyecto.nombre ?? '',
+          tipo: subproyecto.tipo ?? 'backend',
           tecnologias: Array.isArray(subproyecto.tecnologias)
             ? [...subproyecto.tecnologias]
             : [],
@@ -223,7 +227,7 @@ function abrirDetalleSubproyecto(subproyecto = null, index = null) {
                 .map((item) => item.id)
                 .filter((id) => id !== undefined),
         }
-      : { id: generarIdTemporal(), nombre: '', tecnologias: [], componentes: [] }
+      : { id: generarIdTemporal(), nombre: '', tipo: 'backend', tecnologias: [], componentes: [] }
   );
   const mensajeErrorSubproyecto = ref('');
   let cerrarDetalle = null;
@@ -240,6 +244,7 @@ function abrirDetalleSubproyecto(subproyecto = null, index = null) {
     const subproyectoGuardado = {
       id: subproyectoTemp.value.id,
       nombre: nombreTrim,
+      tipo: subproyectoTemp.value.tipo,
       tecnologias: Array.isArray(subproyectoTemp.value.tecnologias)
         ? Array.from(new Set(subproyectoTemp.value.tecnologias.map((id) => Number(id)).filter((id) => id > 0)))
         : [],

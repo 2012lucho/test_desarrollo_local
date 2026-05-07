@@ -10,6 +10,15 @@
 
       <div class="col-12 col-lg-6">
         <div class="mb-3">
+          <label class="form-label">Tipo de subproyecto</label>
+          <select v-model="tipoSubproyecto" class="form-select">
+            <option value="frontend">Frontend</option>
+            <option value="backend">Backend</option>
+            <option value="backend_y_frontend">Backend y Frontend</option>
+            <option value="base_datos">Base de datos</option>
+          </select>
+        </div>
+        <div class="mb-3">
           <label class="form-label">Tecnologías relacionadas</label>
           <div class="border rounded p-2 mb-2" style="min-height: 140px;">
             <div v-if="!tecnologiasSeleccionadas.length" class="text-muted">Sin tecnologías seleccionadas.</div>
@@ -49,7 +58,7 @@
               <div v-if="!tecnologias.length" class="text-muted">No hay tecnologías disponibles.</div>
               <div v-else class="list-group">
                 <label
-                  v-for="tecnologia in tecnologias"
+                  v-for="tecnologia in tecnologiasFiltradas"
                   :key="tecnologia.id"
                   class="list-group-item d-flex align-items-center"
                 >
@@ -125,7 +134,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onUnmounted } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import { io } from 'socket.io-client';
 
 const props = defineProps(['subproyecto', 'mensajeError', 'componentes']);
@@ -167,6 +176,30 @@ const nombre = computed({
   set: (val) => { if (props.subproyecto?.value) props.subproyecto.value.nombre = val; },
 });
 
+const tipoSubproyecto = computed({
+  get: () => props.subproyecto?.value?.tipo ?? 'backend',
+  set: (value) => {
+    if (props.subproyecto?.value) {
+      props.subproyecto.value.tipo = value;
+    }
+  },
+});
+
+const tecnologiasFiltradas = computed(() => {
+  return tecnologias.value.filter((item) => item.tipo_aplicacion === tipoSubproyecto.value);
+});
+
+function sanearTecnologiasSeleccionadas() {
+  selectedTecnologias.value = selectedTecnologias.value.filter((id) => {
+    const tecnologia = tecnologias.value.find((item) => item.id === id);
+    return tecnologia && tecnologia.tipo_aplicacion === tipoSubproyecto.value;
+  });
+}
+
+watch(tipoSubproyecto, () => {
+  sanearTecnologiasSeleccionadas();
+});
+
 const selectedComponentes = computed({
   get: () => {
     if (!props.subproyecto?.value) return [];
@@ -197,6 +230,7 @@ function cargarTecnologias() {
     } else {
       tecnologias.value = [];
     }
+    sanearTecnologiasSeleccionadas();
   });
 }
 

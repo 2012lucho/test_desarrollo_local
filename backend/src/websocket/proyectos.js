@@ -6,8 +6,8 @@ const db = require('../db');
  * Eventos entrantes (cliente -> servidor):
  * - proyectos:list
  * - proyectos:get { id }
- * - proyectos:create { nombre, descripcion, subproyectos?: Array<{ id?, nombre, tecnologias?: number[] }>, tablas?: Array<{ id?, nombre, campos?: Array<{ nombre: string, descripcion?: string }> }>, componentes?: Array<{ nombre, descripcion?, config?: object | string, subproyectos?: number[], tablas?: number[] }> }
- * - proyectos:update { id, nombre?, descripcion?, subproyectos?: Array<{ id?, nombre, tecnologias?: number[] }>, tablas?: Array<{ id?, nombre, campos?: Array<{ nombre: string, descripcion?: string }> }>, componentes?: Array<{ nombre, descripcion?, config?: object | string, subproyectos?: number[], tablas?: number[] }> }
+ * - proyectos:create { nombre, descripcion, subproyectos?: Array<{ id?, nombre, tecnologias?: number[] }>, tablas?: Array<{ id?, nombre, campos?: Array<{ nombre: string, descripcion?: string, orden?: number, nulo?: boolean, clave_primaria?: boolean, config?: object | string }> }>, componentes?: Array<{ nombre, descripcion?, config?: object | string, subproyectos?: number[], tablas?: number[] }> }
+ * - proyectos:update { id, nombre?, descripcion?, subproyectos?: Array<{ id?, nombre, tecnologias?: number[] }>, tablas?: Array<{ id?, nombre, campos?: Array<{ nombre: string, descripcion?: string, orden?: number, nulo?: boolean, clave_primaria?: boolean, config?: object | string }> }>, componentes?: Array<{ nombre, descripcion?, config?: object | string, subproyectos?: number[], tablas?: number[] }> }
  * - proyectos:delete { id }
  *
  * Respuestas por callback de ack o emisión general:
@@ -139,7 +139,7 @@ module.exports = (socket, io) => {
       const registro = prepararSubproyectoData(item);
       if (!registro) continue;
       const originalKey = normalizeKey(item?.id ?? item?.tempId);
-      const [subproyectoId] = await db('subproyectos').insert({ proyecto_id: proyectoId, nombre: registro.nombre });
+      const [subproyectoId] = await db('subproyectos').insert({ proyecto_id: proyectoId, nombre: registro.nombre, tipo: registro.tipo });
       if (registro.tecnologias.length) {
         const relaciones = registro.tecnologias.map((tecnologia_id) => ({
           subproyecto_id: subproyectoId,
@@ -197,37 +197,12 @@ module.exports = (socket, io) => {
     const nombre = String(item.nombre ?? '').trim();
     if (!nombre) return null;
 
-    const tecnologias = Array.isArray(item.tecnologias)
-      ? Array.from(new Set(item.tecnologias.map((id) => Number(id)).filter((id) => id > 0)))
-      : [];
+      const tipo = String(item.tipo || 'backend').trim() || 'backend';
+      const tecnologias = Array.isArray(item.tecnologias)
+        ? Array.from(new Set(item.tecnologias.map((id) => Number(id)).filter((id) => id > 0)))
+        : [];
 
-    return { nombre, tecnologias };
-  };
-
-  const prepararTablasData = (tablas) => {
-    if (!Array.isArray(tablas)) return [];
-    return tablas
-      .map((item) => {
-        const nombre = String(item?.nombre ?? '').trim();
-        if (!nombre) return null;
-
-        const campos = Array.isArray(item.campos)
-          ? item.campos
-              .map((campo, index) => {
-                const nombreCampo = String(campo?.nombre ?? '').trim();
-                if (!nombreCampo) return null;
-                return {
-                  nombre: nombreCampo,
-                  descripcion: campo?.descripcion ? String(campo.descripcion).trim() : null,
-                  orden: Number.isNaN(Number(campo?.orden)) ? index : Number(campo.orden),
-                };
-              })
-              .filter(Boolean)
-          : [];
-
-        return { nombre, campos };
-      })
-      .filter(Boolean);
+      return { nombre, tipo, tecnologias };
   };
 
   const insertarCamposTabla = async (proyectoId, tablaId, campos) => {
@@ -242,6 +217,8 @@ module.exports = (socket, io) => {
           nombre,
           descripcion: item?.descripcion ? String(item.descripcion).trim() : null,
           orden: Number.isNaN(Number(item?.orden)) ? index : Number(item.orden),
+          nulo: Boolean(item?.nulo),
+          clave_primaria: Boolean(item?.clave_primaria),
         };
       })
       .filter(Boolean);

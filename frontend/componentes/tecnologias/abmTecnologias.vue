@@ -12,17 +12,21 @@
           <tr>
             <th>ID</th>
             <th>Nombre</th>
+            <th>Tipo</th>
+            <th>Aplicación</th>
             <th>Color</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="!tecnologias.length">
-            <td colspan="3" class="text-muted">Sin tecnologías registradas.</td>
+            <td colspan="6" class="text-muted">Sin tecnologías registradas.</td>
           </tr>
           <tr v-for="tecnologia in tecnologias" :key="tecnologia.id">
             <td>{{ tecnologia.id }}</td>
             <td>{{ tecnologia.nombre }}</td>
+            <td>{{ tecnologia.tipo || 'lenguaje' }}</td>
+            <td>{{ tecnologia.tipo_aplicacion || 'backend' }}</td>
             <td>
               <span v-if="tecnologia.color" class="badge text-bg-secondary">
                 <span class="me-1" :style="{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: tecnologia.color }"></span>
@@ -68,6 +72,9 @@ function cargarLista() {
 function abrirFormulario(tecnologia) {
   const form = ref({
     nombre: tecnologia?.nombre ?? '',
+    tipo: tecnologia?.tipo ?? 'lenguaje',
+    tipo_aplicacion: tecnologia?.tipo_aplicacion ?? 'backend',
+    notas_uso: tecnologia?.notas_uso ?? '',
     color: tecnologia?.color ?? '#000000',
   });
   const editandoId = ref(tecnologia?.id ?? null);
@@ -102,6 +109,9 @@ function abrirFormulario(tecnologia) {
     cargandoForm.value = true;
     const payload = {
       nombre,
+      tipo: String(form.value.tipo || 'lenguaje').trim() || 'lenguaje',
+      tipo_aplicacion: String(form.value.tipo_aplicacion || 'backend').trim() || 'backend',
+      notas_uso: String(form.value.notas_uso || '').trim().slice(0, 512),
       color: String(form.value.color || '').trim() || null,
     };
 
