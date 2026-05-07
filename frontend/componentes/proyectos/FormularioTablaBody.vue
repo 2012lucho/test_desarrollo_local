@@ -35,12 +35,10 @@
                   />
                 </div>
                 <div class="col-6 col-lg-2">
-                  <input
-                    v-model="campo.tipo"
-                    type="text"
-                    class="form-control form-control-sm"
-                    placeholder="Tipo (ej: string, integer)"
-                  />
+                  <select v-model="campo.tipo" class="form-select form-select-sm">
+                    <option disabled value="">Tipo de campo</option>
+                    <option v-for="tipo in tiposCampo" :key="tipo" :value="tipo">{{ tipo }}</option>
+                  </select>
                 </div>
                 <div class="col-6 col-lg-2">
                   <input
@@ -70,6 +68,17 @@
                       :id="'pk-' + (campo.id ?? index)"
                     />
                     <label class="form-check-label" :for="'pk-' + (campo.id ?? index)">PK</label>
+                  </div>
+                </div>
+                <div class="col-6 col-lg-2 d-flex align-items-center">
+                  <div class="form-check mb-0">
+                    <input
+                      v-model="campo.autoincremental"
+                      type="checkbox"
+                      class="form-check-input"
+                      :id="'autoincremental-' + (campo.id ?? index)"
+                    />
+                    <label class="form-check-label" :for="'autoincremental-' + (campo.id ?? index)">Autoincremental</label>
                   </div>
                 </div>
                 <div class="col-12 col-lg-2 d-flex align-items-center justify-content-end">
@@ -109,6 +118,24 @@ const props = defineProps(['tabla', 'mensajeError']);
 
 const generarIdTemporal = () => -(Date.now() + Math.floor(Math.random() * 1000));
 
+const tiposCampo = [
+  'VARCHAR(255)',
+  'VARCHAR(100)',
+  'CHAR(1)',
+  'TEXT',
+  'INT',
+  'BIGINT',
+  'DECIMAL(10,2)',
+  'FLOAT',
+  'DOUBLE',
+  'BOOLEAN',
+  'DATE',
+  'DATETIME',
+  'TIMESTAMP',
+  'JSON',
+  'BLOB',
+];
+
 const nombre = computed({
   get: () => props.tabla?.value?.nombre ?? '',
   set: (val) => {
@@ -147,7 +174,17 @@ function agregarCampo() {
     const orden = Number(campo?.orden ?? 0);
     return Number.isNaN(orden) ? max : Math.max(max, orden);
   }, -1);
-  campos.value.push({ id: generarIdTemporal(), nombre: '', tipo: '', descripcion: '', nulo: false, clave_primaria: false, config: '{}', orden: maxOrden + 1 });
+  campos.value.push({
+    id: generarIdTemporal(),
+    nombre: '',
+    tipo: 'VARCHAR(255)',
+    descripcion: '',
+    nulo: false,
+    clave_primaria: false,
+    autoincremental: false,
+    config: '{}',
+    orden: maxOrden + 1,
+  });
 }
 
 function quitarCampo(campoId) {

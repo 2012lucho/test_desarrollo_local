@@ -6,8 +6,8 @@ const db = require('../db');
  * Eventos entrantes (cliente -> servidor):
  * - proyectos:list
  * - proyectos:get { id }
- * - proyectos:create { nombre, descripcion, subproyectos?: Array<{ id?, nombre, tecnologias?: number[] }>, tablas?: Array<{ id?, nombre, campos?: Array<{ nombre: string, descripcion?: string, orden?: number, nulo?: boolean, clave_primaria?: boolean, config?: object | string }> }>, componentes?: Array<{ nombre, descripcion?, config?: object | string, subproyectos?: number[], tablas?: number[] }> }
- * - proyectos:update { id, nombre?, descripcion?, subproyectos?: Array<{ id?, nombre, tecnologias?: number[] }>, tablas?: Array<{ id?, nombre, campos?: Array<{ nombre: string, descripcion?: string, orden?: number, nulo?: boolean, clave_primaria?: boolean, config?: object | string }> }>, componentes?: Array<{ nombre, descripcion?, config?: object | string, subproyectos?: number[], tablas?: number[] }> }
+ * - proyectos:create { nombre, descripcion, subproyectos?: Array<{ id?, nombre, tecnologias?: number[] }>, tablas?: Array<{ id?, nombre, campos?: Array<{ nombre: string, descripcion?: string, orden?: number, nulo?: boolean, clave_primaria?: boolean, autoincremental?: boolean, config?: object | string }> }>, componentes?: Array<{ nombre, descripcion?, config?: object | string, subproyectos?: number[], tablas?: number[] }> }
+ * - proyectos:update { id, nombre?, descripcion?, subproyectos?: Array<{ id?, nombre, tecnologias?: number[] }>, tablas?: Array<{ id?, nombre, campos?: Array<{ nombre: string, descripcion?: string, orden?: number, nulo?: boolean, clave_primaria?: boolean, autoincremental?: boolean, config?: object | string }> }>, componentes?: Array<{ nombre, descripcion?, config?: object | string, subproyectos?: number[], tablas?: number[] }> }
  * - proyectos:delete { id }
  *
  * Respuestas por callback de ack o emisión general:
@@ -215,10 +215,12 @@ module.exports = (socket, io) => {
           proyecto_id: proyectoId,
           id_tabla: tablaId,
           nombre,
+          tipo: String(item?.tipo || '').trim(),
           descripcion: item?.descripcion ? String(item.descripcion).trim() : null,
           orden: Number.isNaN(Number(item?.orden)) ? index : Number(item.orden),
           nulo: Boolean(item?.nulo),
           clave_primaria: Boolean(item?.clave_primaria),
+          autoincremental: Boolean(item?.autoincremental),
         };
       })
       .filter(Boolean);

@@ -175,7 +175,13 @@ function abrirDetalleTabla(tabla = null, index = null) {
             .map((campo) => ({
               id: campo.id ?? generarIdTemporal(),
               nombre: String(campo.nombre ?? '').trim(),
+              tipo: String(campo.tipo || 'VARCHAR(255)').trim() || 'VARCHAR(255)',
               descripcion: campo.descripcion ? String(campo.descripcion).trim() : null,
+              orden: Number.isNaN(Number(campo.orden)) ? 0 : Number(campo.orden),
+              nulo: Boolean(campo.nulo),
+              clave_primaria: Boolean(campo.clave_primaria),
+              autoincremental: Boolean(campo.autoincremental),
+              config: campo?.config ?? '{}',
             }))
             .filter((campo) => campo.nombre)
         : [],

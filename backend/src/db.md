@@ -52,9 +52,11 @@
 ## campos_tabla
 - id integer pk autoincremental
 - nombre varchar (100) notnull
+- tipo varchar (100) notnull default ''
 - descripcion text null
 - proyecto_id integer fk referencias proyectos(id) notnull
 - id_tabla integer fk referencias tablas_db_proyectos(id) notnull
 - orden integer notnull default 0
 - nulo boolean notnull default false
 - clave_primaria boolean notnull default false
+- autoincremental boolean notnull default false
