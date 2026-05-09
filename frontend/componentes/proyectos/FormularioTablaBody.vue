@@ -232,7 +232,8 @@ function obtenerNombreCampoRelacion(relacion) {
     return `${tabla}${relacion.destino.nombre}`;
   }
   if (relacion.origen?.nombre) {
-    return relacion.origen.nombre;
+    const tabla = relacion.origen.tabla_nombre ? `${relacion.origen.tabla_nombre} / ` : '';
+    return `${tabla}${relacion.origen.nombre}`;
   }
   if (relacion.id_campo_2) {
     return `Campo #${relacion.id_campo_2}`;

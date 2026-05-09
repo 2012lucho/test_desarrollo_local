@@ -80,6 +80,10 @@ module.exports = (socket, io) => {
 
     const tablaIds = tablas.map((item) => item.id);
     const campos = await cargarCamposTabla(tablaIds);
+    const tablaPorId = tablas.reduce((acc, item) => {
+      acc[item.id] = item;
+      return acc;
+    }, {});
     const camposPorTabla = campos.reduce((acc, item) => {
       if (!acc[item.id_tabla]) acc[item.id_tabla] = [];
       item.relaciones = [];
@@ -97,25 +101,37 @@ module.exports = (socket, io) => {
       const origen = campoPorId[rel.id_campo_1];
       const destino = campoPorId[rel.id_campo_2];
       if (origen) {
+        const destinoTabla = destino ? tablaPorId[destino.id_tabla] : null;
         origen.relaciones.push({
           id: rel.id,
           id_campo_1: rel.id_campo_1,
           id_campo_2: rel.id_campo_2,
           tipo_relacion: rel.tipo_relacion,
           destino: destino
-            ? { id: destino.id, nombre: destino.nombre, id_tabla: destino.id_tabla }
+            ? {
+                id: destino.id,
+                nombre: destino.nombre,
+                id_tabla: destino.id_tabla,
+                tabla_nombre: destinoTabla ? destinoTabla.nombre : null,
+              }
             : null,
         });
       }
       if (destino) {
         destino.relaciones = destino.relaciones || [];
+        const origenTabla = origen ? tablaPorId[origen.id_tabla] : null;
         destino.relaciones.push({
           id: rel.id,
           id_campo_1: rel.id_campo_1,
           id_campo_2: rel.id_campo_2,
           tipo_relacion: rel.tipo_relacion,
           origen: origen
-            ? { id: origen.id, nombre: origen.nombre, id_tabla: origen.id_tabla }
+            ? {
+                id: origen.id,
+                nombre: origen.nombre,
+                id_tabla: origen.id_tabla,
+                tabla_nombre: origenTabla ? origenTabla.nombre : null,
+              }
             : null,
           invertida: true,
         });
