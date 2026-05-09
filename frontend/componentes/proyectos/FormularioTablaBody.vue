@@ -81,7 +81,10 @@
                     <label class="form-check-label" :for="'autoincremental-' + (campo.id ?? index)">Autoincremental</label>
                   </div>
                 </div>
-                <div class="col-12 col-lg-2 d-flex align-items-center justify-content-end">
+                <div class="col-12 col-lg-3 d-flex flex-wrap gap-2 justify-content-end">
+                  <button type="button" class="btn btn-sm btn-outline-secondary" @click="abrirAgregarRelacion(campo)">
+                    Agregar relación
+                  </button>
                   <button type="button" class="btn btn-sm btn-outline-danger" @click="quitarCampo(campo.id)">
                     Eliminar
                   </button>
@@ -95,6 +98,22 @@
                     placeholder='Config JSON (ej: {"longitud": 255})'
                     rows="2"
                   />
+                </div>
+              </div>
+              <div class="row g-2 mt-2" v-if="campo.relaciones && campo.relaciones.length">
+                <div class="col-12">
+                  <div class="small text-muted mb-1">Relaciones:</div>
+                  <ul class="list-group list-group-flush">
+                    <li v-for="(rel, relIndex) in campo.relaciones" :key="relIndex" class="list-group-item py-1 d-flex justify-content-between align-items-center">
+                      <div>
+                        <strong>{{ rel.tipo_relacion }}</strong>
+                        <span v-if="rel.invertida"> desde </span>
+                        <span v-else> hacia </span>
+                        <strong>{{ obtenerNombreCampoRelacion(rel) }}</strong>
+                      </div>
+                      <button type="button" class="btn btn-sm btn-outline-danger" @click="eliminarRelacion(campo, relIndex)">Eliminar</button>
+                    </li>
+                  </ul>
                 </div>
               </div>
             </div>
@@ -113,8 +132,12 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
-const props = defineProps(['tabla', 'mensajeError']);
+import { computed, ref } from 'vue';
+import { useModal } from '../../composables/useModal.js';
+import FormularioRelacionCampoBody from './FormularioRelacionCampoBody.vue';
+const props = defineProps(['tabla', 'tablas', 'mensajeError']);
+
+const { mostrarModal } = useModal();
 
 const generarIdTemporal = () => -(Date.now() + Math.floor(Math.random() * 1000));
 
@@ -184,7 +207,57 @@ function agregarCampo() {
     autoincremental: false,
     config: '{}',
     orden: maxOrden + 1,
+    relaciones: [],
   });
+}
+
+function abrirAgregarRelacion(campo) {
+  const mensajeErrorRelacion = ref('');
+  let cerrarRelacion = null;
+
+  cerrarRelacion = mostrarModal({
+    body: FormularioRelacionCampoBody,
+    bodyProps: {
+      campo,
+      tablas: props.tablas,
+      mensajeError: mensajeErrorRelacion,
+      onCerrar: () => cerrarRelacion && cerrarRelacion(),
+    },
+  });
+}
+
+function obtenerNombreCampoRelacion(relacion) {
+  if (relacion.destino?.nombre) {
+    const tabla = relacion.destino.tabla_nombre ? `${relacion.destino.tabla_nombre} / ` : '';
+    return `${tabla}${relacion.destino.nombre}`;
+  }
+  if (relacion.origen?.nombre) {
+    return relacion.origen.nombre;
+  }
+  if (relacion.id_campo_2) {
+    return `Campo #${relacion.id_campo_2}`;
+  }
+  return 'campo desconocido';
+}
+
+function eliminarRelacion(campo, index) {
+  if (!Array.isArray(campo.relaciones)) return;
+  const relacion = campo.relaciones[index];
+  if (!relacion) return;
+
+  if (relacion.id) {
+    if (Array.isArray(props.tablas)) {
+      props.tablas.forEach((tablaItem) => {
+        if (!Array.isArray(tablaItem.campos)) return;
+        tablaItem.campos.forEach((campoItem) => {
+          if (!Array.isArray(campoItem.relaciones)) return;
+          campoItem.relaciones = campoItem.relaciones.filter((relItem) => relItem.id !== relacion.id);
+        });
+      });
+    }
+  }
+
+  campo.relaciones.splice(index, 1);
 }
 
 function quitarCampo(campoId) {

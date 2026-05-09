@@ -203,7 +203,7 @@ function abrirDetalleTabla(tabla = null, index = null) {
     body: FormularioTablaBody,
     footer: FormularioTablaFooter,
     headerProps: { tabla: tablaTemp },
-    bodyProps: { tabla: tablaTemp, mensajeError: mensajeErrorTabla },
+    bodyProps: { tabla: tablaTemp, tablas: tablas.value, mensajeError: mensajeErrorTabla },
     footerProps: { onGuardar: guardarTabla, onCerrar: () => cerrarDetalle && cerrarDetalle() },
   });
 }

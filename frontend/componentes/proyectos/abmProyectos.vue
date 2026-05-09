@@ -134,6 +134,7 @@ function abrirFormulario(proyecto) {
             campos: Array.isArray(item?.campos)
               ? item.campos
                   .map((campo) => ({
+                    id: campo?.id,
                     nombre: String(campo?.nombre ?? '').trim(),
                     tipo: String(campo?.tipo || 'VARCHAR(255)').trim() || 'VARCHAR(255)',
                     descripcion: campo?.descripcion ? String(campo.descripcion).trim() : null,
@@ -142,6 +143,14 @@ function abrirFormulario(proyecto) {
                     clave_primaria: Boolean(campo?.clave_primaria),
                     autoincremental: Boolean(campo?.autoincremental),
                     config: campo?.config ?? '{}',
+                    relaciones: Array.isArray(campo?.relaciones)
+                      ? campo.relaciones
+                          .filter((rel) => rel && rel.id_campo_2 && rel.invertida !== true)
+                          .map((rel) => ({
+                            id_campo_2: rel.id_campo_2,
+                            tipo_relacion: String(rel.tipo_relacion || '1-1').trim() || '1-1',
+                          }))
+                      : [],
                   }))
                   .filter((campo) => campo.nombre)
               : [],
@@ -228,6 +237,17 @@ function abrirFormulario(proyecto) {
                       clave_primaria: Boolean(campo.clave_primaria),
                       autoincremental: Boolean(campo.autoincremental),
                       config: campo?.config ?? '{}',
+                      relaciones: Array.isArray(campo.relaciones)
+                        ? campo.relaciones.map((rel) => ({
+                            id: rel.id,
+                            id_campo_1: rel.id_campo_1,
+                            id_campo_2: rel.id_campo_2,
+                            tipo_relacion: rel.tipo_relacion || '1-1',
+                            destino: rel.destino || null,
+                            origen: rel.origen || null,
+                            invertida: Boolean(rel.invertida),
+                          }))
+                        : [],
                     }))
                   : [],
               }))

@@ -67,6 +67,13 @@ module.exports = (socket, io) => {
     return db('campos_tabla').whereIn('id_tabla', tablaIds).orderBy('orden', 'asc').orderBy('id', 'asc');
   };
 
+  const cargarRelacionesCampos = async (campoIds) => {
+    if (!Array.isArray(campoIds) || campoIds.length === 0) return [];
+    return db('relacion_tabla')
+      .where((qb) => qb.whereIn('id_campo_1', campoIds).orWhereIn('id_campo_2', campoIds))
+      .orderBy('id', 'asc');
+  };
+
   const cargarTablas = async (proyectoId) => {
     const tablas = await db('tablas_db_proyectos').where({ proyecto_id: proyectoId }).orderBy('id', 'asc');
     if (!tablas.length) return [];
@@ -75,9 +82,45 @@ module.exports = (socket, io) => {
     const campos = await cargarCamposTabla(tablaIds);
     const camposPorTabla = campos.reduce((acc, item) => {
       if (!acc[item.id_tabla]) acc[item.id_tabla] = [];
+      item.relaciones = [];
       acc[item.id_tabla].push(item);
       return acc;
     }, {});
+
+    const campoPorId = campos.reduce((acc, item) => {
+      acc[item.id] = item;
+      return acc;
+    }, {});
+
+    const relaciones = await cargarRelacionesCampos(campos.map((item) => item.id));
+    relaciones.forEach((rel) => {
+      const origen = campoPorId[rel.id_campo_1];
+      const destino = campoPorId[rel.id_campo_2];
+      if (origen) {
+        origen.relaciones.push({
+          id: rel.id,
+          id_campo_1: rel.id_campo_1,
+          id_campo_2: rel.id_campo_2,
+          tipo_relacion: rel.tipo_relacion,
+          destino: destino
+            ? { id: destino.id, nombre: destino.nombre, id_tabla: destino.id_tabla }
+            : null,
+        });
+      }
+      if (destino) {
+        destino.relaciones = destino.relaciones || [];
+        destino.relaciones.push({
+          id: rel.id,
+          id_campo_1: rel.id_campo_1,
+          id_campo_2: rel.id_campo_2,
+          tipo_relacion: rel.tipo_relacion,
+          origen: origen
+            ? { id: origen.id, nombre: origen.nombre, id_tabla: origen.id_tabla }
+            : null,
+          invertida: true,
+        });
+      }
+    });
 
     return tablas.map((item) => ({
       ...item,
@@ -211,34 +254,84 @@ module.exports = (socket, io) => {
       return { nombre, tipo, descripcion, tecnologias };
   };
 
-  const insertarCamposTabla = async (proyectoId, tablaId, campos) => {
-    if (!Array.isArray(campos) || !tablaId) return;
-    const registros = campos
-      .map((item, index) => {
-        const nombre = String(item?.nombre ?? '').trim();
-        if (!nombre) return null;
+  const insertarCamposTabla = async (proyectoId, tablaId, campos, relacionesPendientes) => {
+    if (!Array.isArray(campos) || !tablaId) return {};
+    const mapping = {};
+
+    for (const item of campos) {
+      const nombre = String(item?.nombre ?? '').trim();
+      if (!nombre) continue;
+
+      const registro = {
+        proyecto_id: proyectoId,
+        id_tabla: tablaId,
+        nombre,
+        tipo: String(item?.tipo || '').trim(),
+        descripcion: item?.descripcion ? String(item.descripcion).trim() : null,
+        orden: Number.isNaN(Number(item?.orden)) ? 0 : Number(item.orden),
+        nulo: Boolean(item?.nulo),
+        clave_primaria: Boolean(item?.clave_primaria),
+        autoincremental: Boolean(item?.autoincremental),
+      };
+
+      const [campoId] = await db('campos_tabla').insert(registro);
+      const originalKey = normalizeKey(item?.id ?? item?.tempId);
+      if (originalKey !== null) {
+        mapping[originalKey] = campoId;
+      }
+
+      if (Array.isArray(item?.relaciones)) {
+        item.relaciones.forEach((rel) => {
+          const destinoKey = normalizeKey(rel?.id_campo_2);
+          if (originalKey !== null && destinoKey !== null) {
+            relacionesPendientes.push({
+              id_campo_1_temp: originalKey,
+              id_campo_2_temp: destinoKey,
+              tipo_relacion: String(rel.tipo_relacion || '1-1').trim() || '1-1',
+            });
+          }
+        });
+      }
+    }
+
+    return mapping;
+  };
+
+  const insertarRelacionesCampos = async (relacionesPendientes, campoIdMap) => {
+    if (!Array.isArray(relacionesPendientes) || relacionesPendientes.length === 0) return;
+
+    const resolveCampoId = (key) => {
+      const normalized = normalizeKey(key);
+      if (normalized === null) return null;
+      if (campoIdMap[normalized]) return campoIdMap[normalized];
+      const numeric = Number(normalized);
+      return Number.isNaN(numeric) ? null : numeric;
+    };
+
+    const registros = relacionesPendientes
+      .map((item) => {
+        const id_campo_1 = resolveCampoId(item.id_campo_1_temp);
+        const id_campo_2 = resolveCampoId(item.id_campo_2_temp);
+        if (!id_campo_1 || !id_campo_2) return null;
         return {
-          proyecto_id: proyectoId,
-          id_tabla: tablaId,
-          nombre,
-          tipo: String(item?.tipo || '').trim(),
-          descripcion: item?.descripcion ? String(item.descripcion).trim() : null,
-          orden: Number.isNaN(Number(item?.orden)) ? index : Number(item.orden),
-          nulo: Boolean(item?.nulo),
-          clave_primaria: Boolean(item?.clave_primaria),
-          autoincremental: Boolean(item?.autoincremental),
+          id_campo_1,
+          id_campo_2,
+          tipo_relacion: item.tipo_relacion,
         };
       })
       .filter(Boolean);
 
     if (registros.length) {
-      await db('campos_tabla').insert(registros);
+      await db('relacion_tabla').insert(registros);
     }
   };
 
   const insertarTablas = async (proyectoId, tablas) => {
     const mapping = {};
     if (!Array.isArray(tablas)) return mapping;
+
+    const campoIdMap = {};
+    const relacionesPendientes = [];
 
     for (const item of tablas) {
       const nombre = String(item?.nombre ?? '').trim();
@@ -248,13 +341,17 @@ module.exports = (socket, io) => {
         proyecto_id: proyectoId,
         nombre,
       });
+
       if (Array.isArray(item.campos) && item.campos.length) {
-        await insertarCamposTabla(proyectoId, tablaId, item.campos);
+        const camposMap = await insertarCamposTabla(proyectoId, tablaId, item.campos, relacionesPendientes);
+        Object.assign(campoIdMap, camposMap);
       }
       if (originalKey !== null) {
         mapping[originalKey] = tablaId;
       }
     }
+
+    await insertarRelacionesCampos(relacionesPendientes, campoIdMap);
     return mapping;
   };
 

@@ -61,3 +61,9 @@
 - nulo boolean notnull default false
 - clave_primaria boolean notnull default false
 - autoincremental boolean notnull default false
+
+## relacion_tabla
+- id integer pk autoincremental
+- id_campo_1 integer fk referencias campos_tabla(id) notnull
+- id_campo_2 integer fk referencias campos_tabla(id) notnull
+- tipo_relacion varchar(10) notnull default '1-1'
