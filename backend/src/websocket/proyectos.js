@@ -426,13 +426,13 @@ module.exports = (socket, io) => {
   });
 
   socket.on('proyectos:create', async (payload, callback) => {
-    const { nombre, descripcion, subproyectos, tablas, componentes } = payload || {};
+    const { nombre, descripcion, repositorio, subproyectos, tablas, componentes } = payload || {};
     if (!nombre || !descripcion) {
       return safeCallback(callback, { ok: false, error: 'nombre y descripcion son requeridos' });
     }
 
     try {
-      const [id] = await db('proyectos').insert({ nombre, descripcion });
+      const [id] = await db('proyectos').insert({ nombre, descripcion, repositorio });
 
       const subproyectoIdMap = Array.isArray(subproyectos) && subproyectos.length
         ? await insertarSubproyectos(id, subproyectos)
@@ -474,6 +474,7 @@ module.exports = (socket, io) => {
     const data = {};
     if (payload.nombre) data.nombre = payload.nombre;
     if (payload.descripcion) data.descripcion = payload.descripcion;
+    if (payload.repositorio !== undefined) data.repositorio = payload.repositorio;
 
     if (Object.keys(data).length === 0 && !Array.isArray(payload.subproyectos) && !Array.isArray(payload.componentes)) {
       return safeCallback(callback, { ok: false, error: 'Se necesita al menos un campo para actualizar' });

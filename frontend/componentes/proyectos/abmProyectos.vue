@@ -64,7 +64,7 @@ function cargarLista() {
 }
 
 function abrirFormulario(proyecto) {
-  const form = ref({ nombre: proyecto?.nombre ?? '', descripcion: proyecto?.descripcion ?? '', subproyectos: [], tablas: [], componentes: [] });
+  const form = ref({ nombre: proyecto?.nombre ?? '', descripcion: proyecto?.descripcion ?? '', repositorio: proyecto?.repositorio ?? '', subproyectos: [], tablas: [], componentes: [] });
   const editandoId = ref(proyecto?.id ?? null);
   const cargandoForm = ref(false);
   const mensajeErrorForm = ref('');
@@ -95,7 +95,7 @@ function abrirFormulario(proyecto) {
 
   function guardar() {
     mensajeErrorForm.value = '';
-    const { nombre, descripcion, subproyectos, componentes } = form.value;
+    const { nombre, descripcion, repositorio, subproyectos, componentes } = form.value;
     if (!nombre || !descripcion) {
       mensajeErrorForm.value = 'Nombre y descripción son requeridos';
       return;
@@ -162,6 +162,7 @@ function abrirFormulario(proyecto) {
     const payload = {
       nombre,
       descripcion,
+      repositorio,
       subproyectos: Array.isArray(subproyectos)
         ? subproyectos
             .map((item) => ({
@@ -211,6 +212,7 @@ function abrirFormulario(proyecto) {
         form.value = {
           nombre: resp.data.nombre,
           descripcion: resp.data.descripcion,
+          repositorio: resp.data.repositorio || '',
           subproyectos: Array.isArray(resp.data.subproyectos)
             ? resp.data.subproyectos.map((item) => ({
                 id: item.id,

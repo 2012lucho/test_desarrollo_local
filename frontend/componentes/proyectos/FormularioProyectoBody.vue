@@ -9,6 +9,10 @@
         <label class="form-label">Descripción</label>
         <input v-model="descripcion" type="text" class="form-control" maxlength="255" />
       </div>
+      <div class="col-12 col-lg-6">
+        <label class="form-label">Repositorio</label>
+        <input v-model="repositorio" type="text" class="form-control" maxlength="255" placeholder="https://github.com/usuario/repositorio" />
+      </div>
     </div>
 
     <div class="row g-3">
@@ -99,6 +103,11 @@ const nombre = computed({
 const descripcion = computed({
   get: () => props.form?.value?.descripcion ?? '',
   set: (val) => { if (props.form?.value) props.form.value.descripcion = val; },
+});
+
+const repositorio = computed({
+  get: () => props.form?.value?.repositorio ?? '',
+  set: (val) => { if (props.form?.value) props.form.value.repositorio = val; },
 });
 
 const subproyectos = computed({

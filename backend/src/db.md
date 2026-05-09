@@ -11,6 +11,7 @@
 - id integer pk autoincremental
 - nombre varchar (50) notnull
 - descripcion varchar (255) notnull
+- repositorio varchar (255) null
 - creado_el datetime notnull (default now)
 - actualizado_el datetime notnull (default now)
 
