@@ -182,6 +182,7 @@ function abrirDetalleTabla(tabla = null, index = null) {
               clave_primaria: Boolean(campo.clave_primaria),
               autoincremental: Boolean(campo.autoincremental),
               config: campo?.config ?? '{}',
+              relaciones: Array.isArray(campo.relaciones) ? campo.relaciones : [],
             }))
             .filter((campo) => campo.nombre)
         : [],
