@@ -1,10 +1,13 @@
 <template>
   <div class="container-fluid py-3">
     <div class="row g-0">
-      <div class="col-12 sidebar-half border-end min-vh-100">
-        <BarraLateralIzquierda />
+      <div
+        class="col-12 sidebar-column border-end min-vh-100"
+        :class="sidebarCollapsed ? 'sidebar-collapsed' : 'sidebar-expanded'"
+      >
+        <BarraLateralIzquierda :collapsed="sidebarCollapsed" @toggle="sidebarCollapsed = !sidebarCollapsed" />
       </div>
-      <div class="col-12 main-expanded">
+      <div class="col-12 main-column" :class="sidebarCollapsed ? 'main-expanded-collapsed' : 'main-expanded'">
         <ZonaOperaciones />
       </div>
     </div>
@@ -13,20 +16,31 @@
 </template>
 
 <script setup>
+import { ref } from 'vue';
 import BarraLateralIzquierda from './componentes/layout/BarraLateralIzquierda.vue';
 import ZonaOperaciones from './componentes/layout/ZonaOperaciones.vue';
 import GestorModals from './componentes/layout/GestorModals.vue';
+
+const sidebarCollapsed = ref(false);
 </script>
 
 <style scoped>
 @media (min-width: 1200px) {
-  .sidebar-half {
+  .sidebar-column.sidebar-expanded {
     flex: 0 0 12.5%;
     max-width: 12.5%;
   }
-  .main-expanded {
+  .sidebar-column.sidebar-collapsed {
+    flex: 0 0 6.25%;
+    max-width: 6.25%;
+  }
+  .main-column.main-expanded {
     flex: 0 0 87.5%;
     max-width: 87.5%;
+  }
+  .main-column.main-expanded-collapsed {
+    flex: 0 0 93.75%;
+    max-width: 93.75%;
   }
 }
 </style>
