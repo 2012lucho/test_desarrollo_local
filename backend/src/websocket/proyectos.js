@@ -426,13 +426,13 @@ module.exports = (socket, io) => {
   });
 
   socket.on('proyectos:create', async (payload, callback) => {
-    const { nombre, descripcion, repositorio, subproyectos, tablas, componentes } = payload || {};
-    if (!nombre || !descripcion) {
-      return safeCallback(callback, { ok: false, error: 'nombre y descripcion son requeridos' });
+    const { nombre, descripcion, repositorio, directorio_base, subproyectos, tablas, componentes } = payload || {};
+    if (!nombre || !descripcion || !directorio_base) {
+      return safeCallback(callback, { ok: false, error: 'nombre, descripcion y directorio_base son requeridos' });
     }
 
     try {
-      const [id] = await db('proyectos').insert({ nombre, descripcion, repositorio });
+      const [id] = await db('proyectos').insert({ nombre, descripcion, repositorio, directorio_base });
 
       const subproyectoIdMap = Array.isArray(subproyectos) && subproyectos.length
         ? await insertarSubproyectos(id, subproyectos)
@@ -475,6 +475,7 @@ module.exports = (socket, io) => {
     if (payload.nombre) data.nombre = payload.nombre;
     if (payload.descripcion) data.descripcion = payload.descripcion;
     if (payload.repositorio !== undefined) data.repositorio = payload.repositorio;
+    if (payload.directorio_base !== undefined) data.directorio_base = payload.directorio_base;
 
     if (Object.keys(data).length === 0 && !Array.isArray(payload.subproyectos) && !Array.isArray(payload.componentes)) {
       return safeCallback(callback, { ok: false, error: 'Se necesita al menos un campo para actualizar' });

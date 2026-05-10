@@ -12,6 +12,7 @@
 - nombre varchar (50) notnull
 - descripcion varchar (255) notnull
 - repositorio varchar (255) null
+- directorio_base varchar (512) notnull
 - creado_el datetime notnull (default now)
 - actualizado_el datetime notnull (default now)
 

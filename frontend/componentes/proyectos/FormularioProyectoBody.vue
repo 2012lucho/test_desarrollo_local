@@ -13,6 +13,10 @@
         <label class="form-label">Repositorio</label>
         <input v-model="repositorio" type="text" class="form-control" maxlength="255" placeholder="https://github.com/usuario/repositorio" />
       </div>
+      <div class="col-12 col-lg-6">
+        <label class="form-label">Directorio base</label>
+        <input v-model="directorioBase" type="text" class="form-control" maxlength="512" placeholder="Ruta completa del directorio base" />
+      </div>
     </div>
 
     <div class="row g-3">
@@ -108,6 +112,11 @@ const descripcion = computed({
 const repositorio = computed({
   get: () => props.form?.value?.repositorio ?? '',
   set: (val) => { if (props.form?.value) props.form.value.repositorio = val; },
+});
+
+const directorioBase = computed({
+  get: () => props.form?.value?.directorio_base ?? '',
+  set: (val) => { if (props.form?.value) props.form.value.directorio_base = val; },
 });
 
 const subproyectos = computed({
