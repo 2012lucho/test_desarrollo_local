@@ -1,26 +1,26 @@
 <template>
   <div style="min-width: 320px;">
     <div class="row g-3 mb-3">
-      <div class="col-12 col-lg-6">
+      <div class="col-12 col-lg-4">
         <label class="form-label">Nombre</label>
         <input v-model="nombre" type="text" class="form-control" maxlength="50" />
       </div>
-      <div class="col-12 col-lg-6">
+      <div class="col-12 col-lg-4">
         <label class="form-label">Descripción</label>
         <input v-model="descripcion" type="text" class="form-control" maxlength="255" />
       </div>
-      <div class="col-12 col-lg-6">
+      <div class="col-12 col-lg-4">
         <label class="form-label">Repositorio</label>
         <input v-model="repositorio" type="text" class="form-control" maxlength="255" placeholder="https://github.com/usuario/repositorio" />
       </div>
-      <div class="col-12 col-lg-6">
+      <div class="col-12 col-lg-4">
         <label class="form-label">Directorio base</label>
         <input v-model="directorioBase" type="text" class="form-control" maxlength="512" placeholder="Ruta completa del directorio base" />
       </div>
     </div>
 
     <div class="row g-3">
-      <div class="col-12 col-lg-6">
+      <div class="col-12 col-lg-4">
         <div class="mb-3">
           <label class="form-label">Subproyectos</label>
           <ul class="list-group mb-2">
@@ -40,7 +40,7 @@
         </div>
       </div>
 
-      <div class="col-12 col-lg-6">
+      <div class="col-12 col-lg-4">
         <div class="mb-3">
           <label class="form-label">Componentes</label>
           <ul class="list-group mb-2">
@@ -57,7 +57,7 @@
         </div>
       </div>
 
-      <div class="col-12 col-lg-6">
+      <div class="col-12 col-lg-4">
         <div class="mb-3">
           <label class="form-label">Tablas de base de datos</label>
           <ul class="list-group mb-2">
