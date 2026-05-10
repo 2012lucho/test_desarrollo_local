@@ -31,16 +31,17 @@ const sidebarCollapsed = ref(false);
     max-width: 12.5%;
   }
   .sidebar-column.sidebar-collapsed {
-    flex: 0 0 6.25%;
-    max-width: 6.25%;
+    flex: 0 0 auto;
+    width: auto;
+    max-width: 4.5rem;
   }
   .main-column.main-expanded {
     flex: 0 0 87.5%;
     max-width: 87.5%;
   }
   .main-column.main-expanded-collapsed {
-    flex: 0 0 93.75%;
-    max-width: 93.75%;
+    flex: 1 1 auto;
+    max-width: calc(100% - 4.5rem);
   }
 }
 </style>
