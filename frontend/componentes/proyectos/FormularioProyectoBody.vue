@@ -193,7 +193,11 @@ function abrirDetalleTabla(tabla = null, index = null) {
             .map((campo) => ({
               id: campo.id ?? generarIdTemporal(),
               nombre: String(campo.nombre ?? '').trim(),
-              tipo: String(campo.tipo || 'VARCHAR(255)').trim() || 'VARCHAR(255)',
+              tipo: String(campo.tipo || 'VARCHAR').trim() || 'VARCHAR',
+              longitud: (() => {
+                const valor = campo?.longitud;
+                return valor == null || valor === '' || Number.isNaN(Number(valor)) ? null : Number(valor);
+              })(),
               descripcion: campo.descripcion ? String(campo.descripcion).trim() : null,
               orden: Number.isNaN(Number(campo.orden)) ? 0 : Number(campo.orden),
               nulo: Boolean(campo.nulo),

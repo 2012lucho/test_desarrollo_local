@@ -136,12 +136,16 @@ function abrirFormulario(proyecto) {
                   .map((campo) => ({
                     id: campo?.id,
                     nombre: String(campo?.nombre ?? '').trim(),
-                    tipo: String(campo?.tipo || 'VARCHAR(255)').trim() || 'VARCHAR(255)',
+                    tipo: String(campo?.tipo || 'VARCHAR').trim() || 'VARCHAR',
                     descripcion: campo?.descripcion ? String(campo.descripcion).trim() : null,
                     orden: Number.isNaN(Number(campo?.orden)) ? 0 : Number(campo.orden),
                     nulo: Boolean(campo?.nulo),
                     clave_primaria: Boolean(campo?.clave_primaria),
                     autoincremental: Boolean(campo?.autoincremental),
+                    longitud: (() => {
+                      const valor = campo?.longitud;
+                      return valor == null || valor === '' || Number.isNaN(Number(valor)) ? null : Number(valor);
+                    })(),
                     config: campo?.config ?? '{}',
                     relaciones: Array.isArray(campo?.relaciones)
                       ? campo.relaciones
@@ -234,7 +238,8 @@ function abrirFormulario(proyecto) {
                   ? item.campos.map((campo) => ({
                       id: campo.id,
                       nombre: campo.nombre,
-                      tipo: campo.tipo || 'VARCHAR(255)',
+                      tipo: campo.tipo || 'VARCHAR',
+                      longitud: campo.longitud ?? null,
                       descripcion: campo.descripcion || null,
                       orden: Number(campo.orden ?? 0),
                       nulo: Boolean(campo.nulo),

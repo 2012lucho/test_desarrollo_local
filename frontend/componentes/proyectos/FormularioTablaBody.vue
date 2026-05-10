@@ -91,11 +91,20 @@
                 </div>
               </div>
               <div class="row g-2">
-                <div class="col-12">
+                <div class="col-12 col-lg-2">
+                  <input
+                    v-model.number="campo.longitud"
+                    type="number"
+                    class="form-control form-control-sm"
+                    placeholder="Longitud"
+                    min="1"
+                  />
+                </div>
+                <div class="col-12 col-lg-10">
                   <textarea
                     v-model="campo.config"
                     class="form-control form-control-sm font-monospace"
-                    placeholder='Config JSON (ej: {"longitud": 255})'
+                    placeholder='Config JSON (ej: {"precision": 10, "escala": 2})'
                     rows="2"
                   />
                 </div>
@@ -142,13 +151,12 @@ const { mostrarModal } = useModal();
 const generarIdTemporal = () => -(Date.now() + Math.floor(Math.random() * 1000));
 
 const tiposCampo = [
-  'VARCHAR(255)',
-  'VARCHAR(100)',
-  'CHAR(1)',
+  'VARCHAR',
+  'CHAR',
   'TEXT',
   'INT',
   'BIGINT',
-  'DECIMAL(10,2)',
+  'DECIMAL',
   'FLOAT',
   'DOUBLE',
   'BOOLEAN',
@@ -200,7 +208,8 @@ function agregarCampo() {
   campos.value.push({
     id: generarIdTemporal(),
     nombre: '',
-    tipo: 'VARCHAR(255)',
+    tipo: 'VARCHAR',
+    longitud: null,
     descripcion: '',
     nulo: false,
     clave_primaria: false,

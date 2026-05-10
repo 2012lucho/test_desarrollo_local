@@ -56,6 +56,7 @@
 - id integer pk autoincremental
 - nombre varchar (100) notnull
 - tipo varchar (100) notnull default ''
+- longitud integer null
 - descripcion text null
 - proyecto_id integer fk referencias proyectos(id) notnull
 - id_tabla integer fk referencias tablas_db_proyectos(id) notnull

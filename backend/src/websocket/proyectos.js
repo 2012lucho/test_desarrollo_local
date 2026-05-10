@@ -6,8 +6,8 @@ const db = require('../db');
  * Eventos entrantes (cliente -> servidor):
  * - proyectos:list
  * - proyectos:get { id }
- * - proyectos:create { nombre, descripcion, subproyectos?: Array<{ id?, nombre, descripcion?: string, tipo?: string, tecnologias?: number[] }>, tablas?: Array<{ id?, nombre, campos?: Array<{ nombre: string, descripcion?: string, orden?: number, nulo?: boolean, clave_primaria?: boolean, autoincremental?: boolean, config?: object | string }> }>, componentes?: Array<{ nombre, descripcion?, config?: object | string, subproyectos?: number[], tablas?: number[] }> }
- * - proyectos:update { id, nombre?, descripcion?, subproyectos?: Array<{ id?, nombre, descripcion?: string, tipo?: string, tecnologias?: number[] }>, tablas?: Array<{ id?, nombre, campos?: Array<{ nombre: string, descripcion?: string, orden?: number, nulo?: boolean, clave_primaria?: boolean, autoincremental?: boolean, config?: object | string }> }>, componentes?: Array<{ nombre, descripcion?, config?: object | string, subproyectos?: number[], tablas?: number[] }> }
+ * - proyectos:create { nombre, descripcion, subproyectos?: Array<{ id?, nombre, descripcion?: string, tipo?: string, tecnologias?: number[] }>, tablas?: Array<{ id?, nombre, campos?: Array<{ nombre: string, descripcion?: string, orden?: number, nulo?: boolean, clave_primaria?: boolean, autoincremental?: boolean, longitud?: number, config?: object | string }> }>, componentes?: Array<{ nombre, descripcion?, config?: object | string, subproyectos?: number[], tablas?: number[] }> }
+ * - proyectos:update { id, nombre?, descripcion?, subproyectos?: Array<{ id?, nombre, descripcion?: string, tipo?: string, tecnologias?: number[] }>, tablas?: Array<{ id?, nombre, campos?: Array<{ nombre: string, descripcion?: string, orden?: number, nulo?: boolean, clave_primaria?: boolean, autoincremental?: boolean, longitud?: number, config?: object | string }> }>, componentes?: Array<{ nombre, descripcion?, config?: object | string, subproyectos?: number[], tablas?: number[] }> }
  * - proyectos:delete { id }
  *
  * Respuestas por callback de ack o emisión general:
@@ -278,11 +278,13 @@ module.exports = (socket, io) => {
       const nombre = String(item?.nombre ?? '').trim();
       if (!nombre) continue;
 
+      const longitud = item?.longitud;
       const registro = {
         proyecto_id: proyectoId,
         id_tabla: tablaId,
         nombre,
         tipo: String(item?.tipo || '').trim(),
+        longitud: longitud == null || longitud === '' || Number.isNaN(Number(longitud)) ? null : Number(longitud),
         descripcion: item?.descripcion ? String(item.descripcion).trim() : null,
         orden: Number.isNaN(Number(item?.orden)) ? 0 : Number(item.orden),
         nulo: Boolean(item?.nulo),
