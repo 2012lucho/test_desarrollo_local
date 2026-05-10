@@ -1,10 +1,10 @@
 <template>
   <div class="container-fluid py-3">
     <div class="row g-0">
-      <div class="col-12 col-md-3 border-end min-vh-100">
+      <div class="col-12 sidebar-half border-end min-vh-100">
         <BarraLateralIzquierda />
       </div>
-      <div class="col-12 col-md-9">
+      <div class="col-12 main-expanded">
         <ZonaOperaciones />
       </div>
     </div>
@@ -17,4 +17,17 @@ import BarraLateralIzquierda from './componentes/layout/BarraLateralIzquierda.vu
 import ZonaOperaciones from './componentes/layout/ZonaOperaciones.vue';
 import GestorModals from './componentes/layout/GestorModals.vue';
 </script>
+
+<style scoped>
+@media (min-width: 1200px) {
+  .sidebar-half {
+    flex: 0 0 12.5%;
+    max-width: 12.5%;
+  }
+  .main-expanded {
+    flex: 0 0 87.5%;
+    max-width: 87.5%;
+  }
+}
+</style>
 
