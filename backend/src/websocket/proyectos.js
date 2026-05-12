@@ -36,18 +36,9 @@ module.exports = (socket, io) => {
     if (!componentes.length) return [];
 
     const componenteIds = componentes.map((item) => item.id);
-    const relacionesSubproyectos = await db('subproyecto_componentes')
-      .whereIn('componente_id', componenteIds)
-      .select('componente_id', 'subproyecto_id');
     const relacionesTablas = await db('componente_tabla')
       .whereIn('componente_id', componenteIds)
       .select('componente_id', 'tabla_id');
-
-    const subproyectosPorComponente = relacionesSubproyectos.reduce((acc, item) => {
-      if (!acc[item.componente_id]) acc[item.componente_id] = [];
-      acc[item.componente_id].push(item.subproyecto_id);
-      return acc;
-    }, {});
 
     const tablasPorComponente = relacionesTablas.reduce((acc, item) => {
       if (!acc[item.componente_id]) acc[item.componente_id] = [];
@@ -57,7 +48,6 @@ module.exports = (socket, io) => {
 
     return componentes.map((item) => ({
       ...item,
-      subproyectos: subproyectosPorComponente[item.id] || [],
       tablas: tablasPorComponente[item.id] || [],
     }));
   };
@@ -178,12 +168,23 @@ module.exports = (socket, io) => {
           ? Array.from(new Set(item.tablas.map((id) => normalizeKey(id)).filter((id) => id !== null)))
           : [];
 
+        const subproyectoId = normalizeKey(item?.id_subproyecto ?? item?.subproyecto_id);
+        let id_subproyecto = null;
+        if (subproyectoId !== null) {
+          id_subproyecto = subproyectoIdMap && subproyectoIdMap[subproyectoId]
+            ? subproyectoIdMap[subproyectoId]
+            : Number(subproyectoId);
+          if (Number.isNaN(id_subproyecto)) {
+            id_subproyecto = null;
+          }
+        }
+
         return {
           proyecto_id: proyectoId,
           nombre,
           descripcion,
           config,
-          subproyectos,
+          id_subproyecto,
           tablas,
         };
       })
@@ -223,20 +224,8 @@ module.exports = (socket, io) => {
     if (!Array.isArray(componentes)) return;
 
     for (const item of componentes) {
-      const { subproyectos, tablas, ...data } = item;
+      const { tablas, ...data } = item;
       const [componenteId] = await db('componentes').insert(data);
-
-      const relacionesSubproyectos = (Array.isArray(subproyectos) ? subproyectos : [])
-        .map((subId) => {
-          const key = normalizeKey(subId);
-          const subproyecto_id = subproyectoIdMap ? subproyectoIdMap[key] : Number(subId);
-          if (!subproyecto_id || Number.isNaN(subproyecto_id)) return null;
-          return { componente_id: componenteId, subproyecto_id };
-        })
-        .filter(Boolean);
-      if (relacionesSubproyectos.length) {
-        await db('subproyecto_componentes').insert(relacionesSubproyectos);
-      }
 
       const relacionesTablas = (Array.isArray(tablas) ? tablas : [])
         .map((tablaId) => {

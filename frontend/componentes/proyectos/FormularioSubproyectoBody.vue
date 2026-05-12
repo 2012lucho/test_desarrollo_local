@@ -80,51 +80,31 @@
         </div>
 
         <div class="mb-3">
-          <label class="form-label">Componentes relacionados</label>
-          <div class="border rounded p-2 mb-2" style="min-height: 140px;">
-            <div v-if="!componentesSeleccionados.length" class="text-muted">Sin componentes seleccionados.</div>
-            <ul v-else class="list-unstyled mb-0">
-              <li
-                v-for="componente in componentesSeleccionados"
-                :key="componente.id"
-                class="d-flex justify-content-between align-items-center mb-2"
-              >
-                <span>{{ componente.nombre || 'Componente sin nombre' }}</span>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <label class="form-label mb-0">Componentes</label>
+            <button type="button" class="btn btn-sm btn-outline-primary" @click="agregarComponente()">Agregar componente</button>
+          </div>
+          <div v-if="!componentesAsignados.length" class="text-muted mb-2">Sin componentes en este subproyecto.</div>
+          <div v-for="(componente, index) in componentesAsignados" :key="componente.id ?? index" class="card mb-2">
+            <div class="card-header d-flex justify-content-between align-items-center p-2">
+              <div>
+                <button type="button" class="btn btn-link p-0 text-start" style="text-decoration: none;" @click="toggleComponente(componente)">
+                  <strong>{{ componente.nombre || 'Componente sin nombre' }}</strong>
+                </button>
+              </div>
+              <div class="btn-group">
+                <button type="button" class="btn btn-sm btn-outline-secondary" @click="toggleComponente(componente)">
+                  {{ isComponenteExpanded(componente.id) ? 'Ocultar' : 'Mostrar' }}
+                </button>
                 <button type="button" class="btn btn-sm btn-outline-danger" @click="quitarComponente(componente.id)">Eliminar</button>
-              </li>
-            </ul>
-          </div>
-
-          <div class="d-flex gap-2 mb-2">
-            <button type="button" class="btn btn-sm btn-outline-primary" @click="mostrarSeleccionComponentes = !mostrarSeleccionComponentes">
-              {{ mostrarSeleccionComponentes ? 'Ocultar' : 'Seleccionar' }} componentes
-            </button>
-            <button
-              v-if="selectedComponentes.length"
-              type="button"
-              class="btn btn-sm btn-outline-secondary"
-              @click="limpiarComponentes"
-            >
-              Limpiar selección
-            </button>
-          </div>
-
-          <div v-if="mostrarSeleccionComponentes" class="border rounded p-2">
-            <div v-if="!componentes.length" class="text-muted">No hay componentes disponibles.</div>
-            <div v-else class="list-group">
-              <label
-                v-for="componente in componentes"
-                :key="componente.id"
-                class="list-group-item d-flex align-items-center"
-              >
-                <input
-                  type="checkbox"
-                  class="form-check-input me-2"
-                  :value="componente.id"
-                  v-model="selectedComponentes"
-                />
-                <span>{{ componente.nombre || 'Componente sin nombre' }}</span>
-              </label>
+              </div>
+            </div>
+            <div v-show="isComponenteExpanded(componente.id)" class="card-body">
+              <FormularioComponenteBody
+                :componente="componente"
+                :mensajeError="getComponenteError(componente)"
+                :tablas="props.tablas"
+              />
             </div>
           </div>
         </div>
@@ -140,42 +120,42 @@
 <script setup>
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import { io } from 'socket.io-client';
+import FormularioComponenteBody from './FormularioComponenteBody.vue';
 
-const props = defineProps(['subproyecto', 'mensajeError', 'componentes']);
+const props = defineProps(['subproyecto', 'mensajeError', 'componentes', 'tablas']);
 
 const socket = io(import.meta.env.VITE_API_URL);
 const tecnologias = ref([]);
 const cargandoTecnologias = ref(false);
 const mostrarSeleccion = ref(false);
-const mostrarSeleccionComponentes = ref(false);
 
-const subproyecto = computed({
-  get: () => props.subproyecto?.value ?? props.subproyecto ?? {},
-  set: (val) => {
-    if (props.subproyecto?.value) {
-      props.subproyecto.value = val;
-    } else if (props.subproyecto && typeof props.subproyecto === 'object') {
-      Object.assign(props.subproyecto, val);
-    }
-  },
-});
+const subproyectoData = props.subproyecto?.value ?? props.subproyecto ?? {};
 
 const componentes = computed(() => {
   const value = props.componentes?.value ?? props.componentes;
   return Array.isArray(value) ? value : [];
 });
 
+const expandedComponentes = ref([]);
+const _componenteErrores = new Map();
+
+const generarIdTemporal = () => -(Date.now() + Math.floor(Math.random() * 1000));
+
+const subproyectoId = computed(() => subproyectoData?.id ?? null);
+
+const componentesAsignados = computed(() => {
+  if (subproyectoId.value == null) return [];
+  return componentes.value.filter((item) => String(item.id_subproyecto ?? '') === String(subproyectoId.value));
+});
+
 const selectedTecnologias = computed({
   get: () => {
-    if (!subproyecto.value) return [];
-    if (!Array.isArray(subproyecto.value.tecnologias)) {
-      subproyecto.value.tecnologias = [];
-    }
-    return subproyecto.value.tecnologias;
+    const tecnologiasValue = subproyectoData?.tecnologias;
+    return Array.isArray(tecnologiasValue) ? tecnologiasValue : [];
   },
   set: (val) => {
-    if (subproyecto.value) {
-      subproyecto.value.tecnologias = Array.isArray(val)
+    if (subproyectoData) {
+      subproyectoData.tecnologias = Array.isArray(val)
         ? Array.from(new Set(val.map((id) => Number(id)).filter((id) => id > 0)))
         : [];
     }
@@ -187,24 +167,24 @@ const tecnologiasSeleccionadas = computed(() => {
 });
 
 const nombre = computed({
-  get: () => subproyecto.value?.nombre ?? '',
-  set: (val) => { if (subproyecto.value) subproyecto.value.nombre = val; },
+  get: () => subproyectoData?.nombre ?? '',
+  set: (val) => { if (subproyectoData) subproyectoData.nombre = val; },
 });
 
 const tipoSubproyecto = computed({
-  get: () => subproyecto.value?.tipo ?? 'backend',
+  get: () => subproyectoData?.tipo ?? 'backend',
   set: (value) => {
-    if (subproyecto.value) {
-      subproyecto.value.tipo = value;
+    if (subproyectoData) {
+      subproyectoData.tipo = value;
     }
   },
 });
 
 const descripcion = computed({
-  get: () => subproyecto.value?.descripcion ?? '',
+  get: () => subproyectoData?.descripcion ?? '',
   set: (value) => {
-    if (subproyecto.value) {
-      subproyecto.value.descripcion = value;
+    if (subproyectoData) {
+      subproyectoData.descripcion = value;
     }
   },
 });
@@ -222,27 +202,6 @@ function sanearTecnologiasSeleccionadas() {
 
 watch(tipoSubproyecto, () => {
   sanearTecnologiasSeleccionadas();
-});
-
-const selectedComponentes = computed({
-  get: () => {
-    if (!subproyecto.value) return [];
-    if (!Array.isArray(subproyecto.value.componentes)) {
-      subproyecto.value.componentes = [];
-    }
-    return subproyecto.value.componentes;
-  },
-  set: (val) => {
-    if (subproyecto.value) {
-      subproyecto.value.componentes = Array.isArray(val)
-        ? Array.from(new Set(val.map((id) => Number(id)).filter((id) => id !== 0 && !Number.isNaN(id))))
-        : [];
-    }
-  },
-});
-
-const componentesSeleccionados = computed(() => {
-  return componentes.value.filter((item) => selectedComponentes.value.includes(item.id));
 });
 
 function cargarTecnologias() {
@@ -267,11 +226,61 @@ function limpiarTecnologias() {
 }
 
 function quitarComponente(id) {
-  selectedComponentes.value = selectedComponentes.value.filter((item) => item !== id);
+  const lista = props.componentes?.value ?? props.componentes;
+  if (!Array.isArray(lista)) return;
+  const nueva = lista.filter((item) => item.id !== id);
+  if (props.componentes?.value) {
+    props.componentes.value = nueva;
+  } else {
+    lista.splice(0, lista.length, ...nueva);
+  }
 }
 
-function limpiarComponentes() {
-  selectedComponentes.value = [];
+function isComponenteExpanded(id) {
+  return id != null && expandedComponentes.value.includes(id);
+}
+
+function toggleComponente(componente) {
+  if (!componente || componente.id == null) {
+    return;
+  }
+  const id = componente.id;
+  const index = expandedComponentes.value.indexOf(id);
+  if (index === -1) {
+    expandedComponentes.value.push(id);
+  } else {
+    expandedComponentes.value.splice(index, 1);
+  }
+}
+
+function getComponenteError(componente) {
+  if (!componente || componente.id == null) {
+    return ref('');
+  }
+  if (!_componenteErrores.has(componente.id)) {
+    _componenteErrores.set(componente.id, ref(''));
+  }
+  return _componenteErrores.get(componente.id);
+}
+
+function agregarComponente() {
+  const nueva = {
+    id: generarIdTemporal(),
+    id_subproyecto: subproyectoId.value,
+    nombre: '',
+    descripcion: '',
+    configText: '{}',
+    tablas: [],
+  };
+  if (Array.isArray(props.componentes?.value)) {
+    props.componentes.value.push(nueva);
+  } else if (Array.isArray(props.componentes)) {
+    props.componentes.push(nueva);
+  }
+  _componenteErrores.set(nueva.id, ref(''));
+  if (!isComponenteExpanded(nueva.id)) {
+    expandedComponentes.value.push(nueva.id);
+  }
 }
 
 onMounted(() => {

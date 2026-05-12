@@ -24,14 +24,6 @@
               <button
                 type="button"
                 class="list-group-item list-group-item-action"
-                :class="{ active: seccionActiva === 'componentes' }"
-                @click="seccionActiva = 'componentes'"
-              >
-                Componentes
-              </button>
-              <button
-                type="button"
-                class="list-group-item list-group-item-action"
                 :class="{ active: seccionActiva === 'tablas' }"
                 @click="seccionActiva = 'tablas'"
               >
@@ -93,44 +85,13 @@
                       :subproyecto="sub"
                       :mensajeError="getSubproyectoError(sub)"
                       :componentes="componentes"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div v-if="seccionActiva === 'componentes'">
-              <div class="mb-3">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                  <label class="form-label mb-0">Componentes</label>
-                  <button type="button" class="btn btn-sm btn-outline-primary" @click="agregarComponente()">Agregar componente</button>
-                </div>
-                <div v-if="!componentes.length" class="text-muted mb-2">Sin componentes aún.</div>
-                <div v-for="(componente, index) in componentes" :key="componente.id ?? index" class="card mb-2">
-                  <div class="card-header d-flex justify-content-between align-items-center p-2">
-                    <div>
-                      <button type="button" class="btn btn-link p-0 text-start" style="text-decoration: none;" @click="toggleComponente(componente)">
-                        <strong>{{ componente.nombre || 'Componente sin nombre' }}</strong>
-                      </button>
-                    </div>
-                    <div class="btn-group">
-                      <button type="button" class="btn btn-sm btn-outline-secondary" @click="toggleComponente(componente)">
-                        {{ isComponenteExpanded(componente.id) ? 'Ocultar' : 'Mostrar' }}
-                      </button>
-                      <button type="button" class="btn btn-sm btn-outline-danger" @click="quitarComponente(index)">Eliminar</button>
-                    </div>
-                  </div>
-                  <div v-show="isComponenteExpanded(componente.id)" class="card-body">
-                    <FormularioComponenteBody
-                      :componente="componente"
-                      :mensajeError="getComponenteError(componente)"
-                      :subproyectos="subproyectos"
                       :tablas="tablas"
                     />
                   </div>
                 </div>
               </div>
             </div>
+
 
             <div v-if="seccionActiva === 'tablas'">
               <div class="mb-3">
@@ -171,21 +132,30 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
-import FormularioComponenteBody from './FormularioComponenteBody.vue';
+import { computed, ref, watch } from 'vue';
 import FormularioSubproyectoBody from './FormularioSubproyectoBody.vue';
 import FormularioTablaBody from './FormularioTablaBody.vue';
 
 const props = defineProps(['form', 'mensajeError']);
 const seccionActiva = ref('general');
 const expandedSubproyectos = ref([]);
-const subproyectoErrores = ref({});
-const expandedComponentes = ref([]);
-const componenteErrores = ref({});
+const _subproyectoErrores = new Map();
 const expandedTablas = ref([]);
-const tablaErrores = ref({});
+const _tablaErrores = new Map();
 
 const generarIdTemporal = () => -(Date.now() + Math.floor(Math.random() * 1000));
+
+const formData = computed(() => props.form?.value ?? props.form ?? null);
+
+const ensureFormArrays = () => {
+  const form = formData.value;
+  if (!form) return;
+  if (!Array.isArray(form.subproyectos)) form.subproyectos = [];
+  if (!Array.isArray(form.componentes)) form.componentes = [];
+  if (!Array.isArray(form.tablas)) form.tablas = [];
+};
+
+watch(formData, ensureFormArrays, { immediate: true });
 
 const nombre = computed({
   get: () => props.form?.value?.nombre ?? '',
@@ -208,46 +178,28 @@ const directorioBase = computed({
 });
 
 const subproyectos = computed({
-  get: () => {
-    if (!props.form?.value) return [];
-    if (!Array.isArray(props.form.value.subproyectos)) {
-      props.form.value.subproyectos = [];
-    }
-    return props.form.value.subproyectos;
-  },
+  get: () => formData.value?.subproyectos ?? [],
   set: (val) => {
-    if (props.form?.value) {
-      props.form.value.subproyectos = val;
+    if (formData.value) {
+      formData.value.subproyectos = val;
     }
   },
 });
 
 const componentes = computed({
-  get: () => {
-    if (!props.form?.value) return [];
-    if (!Array.isArray(props.form.value.componentes)) {
-      props.form.value.componentes = [];
-    }
-    return props.form.value.componentes;
-  },
+  get: () => formData.value?.componentes ?? [],
   set: (val) => {
-    if (props.form?.value) {
-      props.form.value.componentes = val;
+    if (formData.value) {
+      formData.value.componentes = val;
     }
   },
 });
 
 const tablas = computed({
-  get: () => {
-    if (!props.form?.value) return [];
-    if (!Array.isArray(props.form.value.tablas)) {
-      props.form.value.tablas = [];
-    }
-    return props.form.value.tablas;
-  },
+  get: () => formData.value?.tablas ?? [],
   set: (val) => {
-    if (props.form?.value) {
-      props.form.value.tablas = val;
+    if (formData.value) {
+      formData.value.tablas = val;
     }
   },
 });
@@ -273,10 +225,10 @@ function getTablaError(tabla) {
   if (!tabla || tabla.id == null) {
     return ref('');
   }
-  if (!tablaErrores.value[tabla.id]) {
-    tablaErrores.value[tabla.id] = ref('');
+  if (!_tablaErrores.has(tabla.id)) {
+    _tablaErrores.set(tabla.id, ref(''));
   }
-  return tablaErrores.value[tabla.id];
+  return _tablaErrores.get(tabla.id);
 }
 
 function agregarTabla() {
@@ -297,7 +249,7 @@ function quitarTabla(index) {
   tablas.value.splice(index, 1);
   if (tablaId != null) {
     expandedTablas.value = expandedTablas.value.filter((id) => id !== tablaId);
-    delete tablaErrores.value[tablaId];
+    _tablaErrores.delete(tablaId);
   }
 }
 
@@ -324,12 +276,10 @@ function quitarSubproyecto(index) {
   subproyectos.value.splice(index, 1);
   if (subproyectoId !== undefined) {
     expandedSubproyectos.value = expandedSubproyectos.value.filter((id) => id !== subproyectoId);
-    delete subproyectoErrores.value[subproyectoId];
-    componentes.value.forEach((componente) => {
-      if (Array.isArray(componente.subproyectos)) {
-        componente.subproyectos = componente.subproyectos.filter((id) => id !== subproyectoId);
-      }
-    });
+    _subproyectoErrores.delete(subproyectoId);
+    if (Array.isArray(componentes.value)) {
+      componentes.value = componentes.value.filter((componente) => componente.id_subproyecto !== subproyectoId);
+    }
   }
 }
 
@@ -354,10 +304,10 @@ function getSubproyectoError(subproyecto) {
   if (!subproyecto || subproyecto.id == null) {
     return ref('');
   }
-  if (!subproyectoErrores.value[subproyecto.id]) {
-    subproyectoErrores.value[subproyecto.id] = ref('');
+  if (!_subproyectoErrores.has(subproyecto.id)) {
+    _subproyectoErrores.set(subproyecto.id, ref(''));
   }
-  return subproyectoErrores.value[subproyecto.id];
+  return _subproyectoErrores.get(subproyecto.id);
 }
 
 function agregarSubproyecto() {
@@ -376,50 +326,4 @@ function agregarSubproyecto() {
   }
 }
 
-function isComponenteExpanded(id) {
-  return id != null && expandedComponentes.value.includes(id);
-}
-
-function toggleComponente(componente) {
-  if (!componente || componente.id == null) {
-    return;
-  }
-  const id = componente.id;
-  const index = expandedComponentes.value.indexOf(id);
-  if (index === -1) {
-    expandedComponentes.value.push(id);
-  } else {
-    expandedComponentes.value.splice(index, 1);
-  }
-}
-
-function getComponenteError(componente) {
-  if (!componente || componente.id == null) {
-    return ref('');
-  }
-  if (!componenteErrores.value[componente.id]) {
-    componenteErrores.value[componente.id] = ref('');
-  }
-  return componenteErrores.value[componente.id];
-}
-
-function agregarComponente() {
-  const nuevo = {
-    id: generarIdTemporal(),
-    nombre: '',
-    descripcion: '',
-    configText: '{}',
-    subproyectos: [],
-    tablas: [],
-  };
-  componentes.value.push(nuevo);
-  getComponenteError(nuevo);
-  if (!isComponenteExpanded(nuevo.id)) {
-    expandedComponentes.value.push(nuevo.id);
-  }
-}
-
-function quitarComponente(index) {
-  componentes.value.splice(index, 1);
-}
 </script>

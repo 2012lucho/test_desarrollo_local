@@ -189,10 +189,7 @@ const nombre = computed({
 
 const campos = computed({
   get: () => {
-    if (!tabla.value) return [];
-    if (!Array.isArray(tabla.value.campos)) {
-      tabla.value.campos = [];
-    }
+    if (!tabla.value || !Array.isArray(tabla.value.campos)) return [];
     return tabla.value.campos;
   },
   set: (val) => {
