@@ -1,82 +1,131 @@
 <template>
   <div style="min-width: 320px;">
-    <div class="row g-3 mb-3">
-      <div class="col-12 col-lg-4">
-        <label class="form-label">Nombre</label>
-        <input v-model="nombre" type="text" class="form-control" maxlength="50" />
-      </div>
-      <div class="col-12 col-lg-4">
-        <label class="form-label">Descripción</label>
-        <input v-model="descripcion" type="text" class="form-control" maxlength="255" />
-      </div>
-      <div class="col-12 col-lg-4">
-        <label class="form-label">Repositorio</label>
-        <input v-model="repositorio" type="text" class="form-control" maxlength="255" placeholder="https://github.com/usuario/repositorio" />
-      </div>
-      <div class="col-12 col-lg-4">
-        <label class="form-label">Directorio base</label>
-        <input v-model="directorioBase" type="text" class="form-control" maxlength="512" placeholder="Ruta completa del directorio base" />
-      </div>
-    </div>
-
     <div class="row g-3">
-      <div class="col-12 col-lg-4">
-        <div class="mb-3">
-          <label class="form-label">Subproyectos</label>
-          <ul class="list-group mb-2">
-            <li v-for="(sub, index) in subproyectos" :key="index" class="list-group-item d-flex justify-content-between align-items-center">
-              <span class="flex-grow-1">
-                {{ sub.nombre || 'Subproyecto sin nombre' }}
-                <small class="text-muted">({{ sub.tipo || 'backend' }})</small>
-              </span>
-              <div class="btn-group">
-                <button type="button" class="btn btn-sm btn-outline-primary" @click="abrirDetalleSubproyecto(sub, index)">Ver detalles</button>
-                <button type="button" class="btn btn-sm btn-outline-danger" @click="quitarSubproyecto(index)">Eliminar</button>
-              </div>
-            </li>
-            <li v-if="!subproyectos.length" class="list-group-item text-muted">Sin subproyectos aún.</li>
-          </ul>
-          <button type="button" class="btn btn-sm btn-outline-primary" @click="abrirDetalleSubproyecto()">Agregar subproyecto</button>
+      <div class="col-12 col-lg-2">
+        <div class="card mb-3">
+          <div class="card-body p-2">
+            <div class="list-group">
+              <button
+                type="button"
+                class="list-group-item list-group-item-action"
+                :class="{ active: seccionActiva === 'general' }"
+                @click="seccionActiva = 'general'"
+              >
+                General
+              </button>
+              <button
+                type="button"
+                class="list-group-item list-group-item-action"
+                :class="{ active: seccionActiva === 'subproyectos' }"
+                @click="seccionActiva = 'subproyectos'"
+              >
+                Subproyectos
+              </button>
+              <button
+                type="button"
+                class="list-group-item list-group-item-action"
+                :class="{ active: seccionActiva === 'componentes' }"
+                @click="seccionActiva = 'componentes'"
+              >
+                Componentes
+              </button>
+              <button
+                type="button"
+                class="list-group-item list-group-item-action"
+                :class="{ active: seccionActiva === 'tablas' }"
+                @click="seccionActiva = 'tablas'"
+              >
+                Tablas Base de Datos
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="col-12 col-lg-4">
-        <div class="mb-3">
-          <label class="form-label">Componentes</label>
-          <ul class="list-group mb-2">
-            <li v-for="(componente, index) in componentes" :key="index" class="list-group-item d-flex justify-content-between align-items-center">
-              <span class="flex-grow-1">{{ componente.nombre || 'Componente sin nombre' }}</span>
-              <div class="btn-group">
-                <button type="button" class="btn btn-sm btn-outline-primary" @click="abrirDetalleComponente(componente, index)">Ver detalles</button>
-                <button type="button" class="btn btn-sm btn-outline-danger" @click="quitarComponente(index)">Eliminar</button>
+      <div class="col-12 col-lg-10">
+        <div class="card">
+          <div class="card-body">
+            <div v-if="seccionActiva === 'general'">
+              <div class="row g-3 mb-3">
+                <div class="col-12 col-lg-6">
+                  <label class="form-label">Nombre</label>
+                  <input v-model="nombre" type="text" class="form-control" maxlength="50" />
+                </div>
+                <div class="col-12 col-lg-6">
+                  <label class="form-label">Descripción</label>
+                  <input v-model="descripcion" type="text" class="form-control" maxlength="255" />
+                </div>
+                <div class="col-12 col-lg-6">
+                  <label class="form-label">Repositorio</label>
+                  <input v-model="repositorio" type="text" class="form-control" maxlength="255" placeholder="https://github.com/usuario/repositorio" />
+                </div>
+                <div class="col-12 col-lg-6">
+                  <label class="form-label">Directorio base</label>
+                  <input v-model="directorioBase" type="text" class="form-control" maxlength="512" placeholder="Ruta completa del directorio base" />
+                </div>
               </div>
-            </li>
-            <li v-if="!componentes.length" class="list-group-item text-muted">Sin componentes aún.</li>
-          </ul>
-          <button type="button" class="btn btn-sm btn-outline-primary" @click="abrirDetalleComponente()">Agregar componente</button>
+            </div>
+
+            <div v-if="seccionActiva === 'subproyectos'">
+              <div class="mb-3">
+                <label class="form-label">Subproyectos</label>
+                <ul class="list-group mb-2">
+                  <li v-for="(sub, index) in subproyectos" :key="index" class="list-group-item d-flex justify-content-between align-items-center">
+                    <span class="flex-grow-1">
+                      {{ sub.nombre || 'Subproyecto sin nombre' }}
+                      <small class="text-muted">({{ sub.tipo || 'backend' }})</small>
+                    </span>
+                    <div class="btn-group">
+                      <button type="button" class="btn btn-sm btn-outline-primary" @click="abrirDetalleSubproyecto(sub, index)">Ver detalles</button>
+                      <button type="button" class="btn btn-sm btn-outline-danger" @click="quitarSubproyecto(index)">Eliminar</button>
+                    </div>
+                  </li>
+                  <li v-if="!subproyectos.length" class="list-group-item text-muted">Sin subproyectos aún.</li>
+                </ul>
+                <button type="button" class="btn btn-sm btn-outline-primary" @click="abrirDetalleSubproyecto()">Agregar subproyecto</button>
+              </div>
+            </div>
+
+            <div v-if="seccionActiva === 'componentes'">
+              <div class="mb-3">
+                <label class="form-label">Componentes</label>
+                <ul class="list-group mb-2">
+                  <li v-for="(componente, index) in componentes" :key="index" class="list-group-item d-flex justify-content-between align-items-center">
+                    <span class="flex-grow-1">{{ componente.nombre || 'Componente sin nombre' }}</span>
+                    <div class="btn-group">
+                      <button type="button" class="btn btn-sm btn-outline-primary" @click="abrirDetalleComponente(componente, index)">Ver detalles</button>
+                      <button type="button" class="btn btn-sm btn-outline-danger" @click="quitarComponente(index)">Eliminar</button>
+                    </div>
+                  </li>
+                  <li v-if="!componentes.length" class="list-group-item text-muted">Sin componentes aún.</li>
+                </ul>
+                <button type="button" class="btn btn-sm btn-outline-primary" @click="abrirDetalleComponente()">Agregar componente</button>
+              </div>
+            </div>
+
+            <div v-if="seccionActiva === 'tablas'">
+              <div class="mb-3">
+                <label class="form-label">Tablas de base de datos</label>
+                <ul class="list-group mb-2">
+                  <li v-for="(tabla, index) in tablas" :key="tabla.id ?? index" class="list-group-item d-flex justify-content-between align-items-center">
+                    <span class="flex-grow-1">{{ tabla.nombre || 'Tabla sin nombre' }}</span>
+                    <div class="btn-group">
+                      <button type="button" class="btn btn-sm btn-outline-primary" @click="editarTabla(index)">Editar</button>
+                      <button type="button" class="btn btn-sm btn-outline-danger" @click="quitarTabla(index)">Eliminar</button>
+                    </div>
+                  </li>
+                  <li v-if="!tablas.length" class="list-group-item text-muted">Sin tablas aún.</li>
+                </ul>
+                <button type="button" class="btn btn-sm btn-outline-primary" @click="abrirDetalleTabla()">Agregar tabla</button>
+              </div>
+            </div>
+
+            <div v-if="props.mensajeError?.value" class="alert alert-danger py-1 mt-3 mb-0">
+              {{ props.mensajeError.value }}
+            </div>
+          </div>
         </div>
       </div>
-
-      <div class="col-12 col-lg-4">
-        <div class="mb-3">
-          <label class="form-label">Tablas de base de datos</label>
-          <ul class="list-group mb-2">
-            <li v-for="(tabla, index) in tablas" :key="tabla.id ?? index" class="list-group-item d-flex justify-content-between align-items-center">
-              <span class="flex-grow-1">{{ tabla.nombre || 'Tabla sin nombre' }}</span>
-              <div class="btn-group">
-                <button type="button" class="btn btn-sm btn-outline-primary" @click="editarTabla(index)">Editar</button>
-                <button type="button" class="btn btn-sm btn-outline-danger" @click="quitarTabla(index)">Eliminar</button>
-              </div>
-            </li>
-            <li v-if="!tablas.length" class="list-group-item text-muted">Sin tablas aún.</li>
-          </ul>
-          <button type="button" class="btn btn-sm btn-outline-primary" @click="abrirDetalleTabla()">Agregar tabla</button>
-        </div>
-      </div>
-    </div>
-
-    <div v-if="props.mensajeError?.value" class="alert alert-danger py-1 mb-0">
-      {{ props.mensajeError.value }}
     </div>
   </div>
 </template>
@@ -96,6 +145,7 @@ import FormularioTablaFooter from './FormularioTablaFooter.vue';
 
 const props = defineProps(['form', 'mensajeError']);
 const { mostrarModal } = useModal();
+const seccionActiva = ref('general');
 
 const generarIdTemporal = () => -(Date.now() + Math.floor(Math.random() * 1000));
 
