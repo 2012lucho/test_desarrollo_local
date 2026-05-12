@@ -132,19 +132,30 @@ import { computed, ref } from 'vue';
 
 const props = defineProps(['componente', 'mensajeError', 'subproyectos', 'tablas']);
 
+const componente = computed({
+  get: () => props.componente?.value ?? props.componente ?? {},
+  set: (val) => {
+    if (props.componente?.value) {
+      props.componente.value = val;
+    } else if (props.componente && typeof props.componente === 'object') {
+      Object.assign(props.componente, val);
+    }
+  },
+});
+
 const nombre = computed({
-  get: () => props.componente?.value?.nombre ?? '',
-  set: (val) => { if (props.componente?.value) props.componente.value.nombre = val; },
+  get: () => componente.value?.nombre ?? '',
+  set: (val) => { if (componente.value) componente.value.nombre = val; },
 });
 
 const descripcion = computed({
-  get: () => props.componente?.value?.descripcion ?? '',
-  set: (val) => { if (props.componente?.value) props.componente.value.descripcion = val; },
+  get: () => componente.value?.descripcion ?? '',
+  set: (val) => { if (componente.value) componente.value.descripcion = val; },
 });
 
 const configText = computed({
-  get: () => props.componente?.value?.configText ?? '{}',
-  set: (val) => { if (props.componente?.value) props.componente.value.configText = val; },
+  get: () => componente.value?.configText ?? '{}',
+  set: (val) => { if (componente.value) componente.value.configText = val; },
 });
 
 const mostrarSeleccionSubproyectos = ref(false);
@@ -152,15 +163,15 @@ const mostrarSeleccionTablas = ref(false);
 
 const selectedSubproyectos = computed({
   get: () => {
-    if (!props.componente?.value) return [];
-    if (!Array.isArray(props.componente.value.subproyectos)) {
-      props.componente.value.subproyectos = [];
+    if (!componente.value) return [];
+    if (!Array.isArray(componente.value.subproyectos)) {
+      componente.value.subproyectos = [];
     }
-    return props.componente.value.subproyectos;
+    return componente.value.subproyectos;
   },
   set: (val) => {
-    if (props.componente?.value) {
-      props.componente.value.subproyectos = Array.isArray(val)
+    if (componente.value) {
+      componente.value.subproyectos = Array.isArray(val)
         ? Array.from(new Set(val.map((id) => Number(id)).filter((id) => id !== 0 && !Number.isNaN(id))))
         : [];
     }
@@ -169,15 +180,15 @@ const selectedSubproyectos = computed({
 
 const selectedTablas = computed({
   get: () => {
-    if (!props.componente?.value) return [];
-    if (!Array.isArray(props.componente.value.tablas)) {
-      props.componente.value.tablas = [];
+    if (!componente.value) return [];
+    if (!Array.isArray(componente.value.tablas)) {
+      componente.value.tablas = [];
     }
-    return props.componente.value.tablas;
+    return componente.value.tablas;
   },
   set: (val) => {
-    if (props.componente?.value) {
-      props.componente.value.tablas = Array.isArray(val)
+    if (componente.value) {
+      componente.value.tablas = Array.isArray(val)
         ? Array.from(new Set(val.map((id) => Number(id)).filter((id) => id !== 0 && !Number.isNaN(id))))
         : [];
     }

@@ -101,18 +101,34 @@
 
             <div v-if="seccionActiva === 'componentes'">
               <div class="mb-3">
-                <label class="form-label">Componentes</label>
-                <ul class="list-group mb-2">
-                  <li v-for="(componente, index) in componentes" :key="index" class="list-group-item d-flex justify-content-between align-items-center">
-                    <span class="flex-grow-1">{{ componente.nombre || 'Componente sin nombre' }}</span>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <label class="form-label mb-0">Componentes</label>
+                  <button type="button" class="btn btn-sm btn-outline-primary" @click="agregarComponente()">Agregar componente</button>
+                </div>
+                <div v-if="!componentes.length" class="text-muted mb-2">Sin componentes aún.</div>
+                <div v-for="(componente, index) in componentes" :key="componente.id ?? index" class="card mb-2">
+                  <div class="card-header d-flex justify-content-between align-items-center p-2">
+                    <div>
+                      <button type="button" class="btn btn-link p-0 text-start" style="text-decoration: none;" @click="toggleComponente(componente)">
+                        <strong>{{ componente.nombre || 'Componente sin nombre' }}</strong>
+                      </button>
+                    </div>
                     <div class="btn-group">
-                      <button type="button" class="btn btn-sm btn-outline-primary" @click="abrirDetalleComponente(componente, index)">Ver detalles</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" @click="toggleComponente(componente)">
+                        {{ isComponenteExpanded(componente.id) ? 'Ocultar' : 'Mostrar' }}
+                      </button>
                       <button type="button" class="btn btn-sm btn-outline-danger" @click="quitarComponente(index)">Eliminar</button>
                     </div>
-                  </li>
-                  <li v-if="!componentes.length" class="list-group-item text-muted">Sin componentes aún.</li>
-                </ul>
-                <button type="button" class="btn btn-sm btn-outline-primary" @click="abrirDetalleComponente()">Agregar componente</button>
+                  </div>
+                  <div v-show="isComponenteExpanded(componente.id)" class="card-body">
+                    <FormularioComponenteBody
+                      :componente="componente"
+                      :mensajeError="getComponenteError(componente)"
+                      :subproyectos="subproyectos"
+                      :tablas="tablas"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -146,9 +162,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { useModal } from '../../composables/useModal.js';
-import FormularioComponenteHeader from './FormularioComponenteHeader.vue';
 import FormularioComponenteBody from './FormularioComponenteBody.vue';
-import FormularioComponenteFooter from './FormularioComponenteFooter.vue';
 import FormularioSubproyectoBody from './FormularioSubproyectoBody.vue';
 import FormularioTablaHeader from './FormularioTablaHeader.vue';
 import FormularioTablaBody from './FormularioTablaBody.vue';
@@ -159,6 +173,8 @@ const { mostrarModal } = useModal();
 const seccionActiva = ref('general');
 const expandedSubproyectos = ref([]);
 const subproyectoErrores = ref({});
+const expandedComponentes = ref([]);
+const componenteErrores = ref({});
 
 const generarIdTemporal = () => -(Date.now() + Math.floor(Math.random() * 1000));
 
@@ -377,72 +393,47 @@ function agregarSubproyecto() {
   }
 }
 
-function abrirDetalleComponente(componente = null, index = null) {
-  const componenteTemp = ref(
-    componente
-      ? {
-          id: componente.id ?? generarIdTemporal(),
-          nombre: componente.nombre ?? '',
-          descripcion: componente.descripcion ?? '',
-          configText: componente.configText ?? JSON.stringify(componente.config ?? {}, null, 2),
-          subproyectos: Array.isArray(componente.subproyectos) ? [...componente.subproyectos] : [],
-          tablas: Array.isArray(componente.tablas) ? [...componente.tablas] : [],
-        }
-      : { id: generarIdTemporal(), nombre: '', descripcion: '', configText: '{}', subproyectos: [], tablas: [] }
-  );
-  const mensajeErrorComponente = ref('');
-  let cerrarDetalle = null;
+function isComponenteExpanded(id) {
+  return id != null && expandedComponentes.value.includes(id);
+}
 
-  function guardarComponente() {
-    mensajeErrorComponente.value = '';
-    const nombreTrim = String(componenteTemp.value.nombre ?? '').trim();
-    const descripcionTrim = String(componenteTemp.value.descripcion ?? '').trim();
-    const configTextValue = String(componenteTemp.value.configText ?? '').trim() || '{}';
-
-    if (!nombreTrim) {
-      mensajeErrorComponente.value = 'Nombre del componente es requerido';
-      return;
-    }
-
-    try {
-      JSON.parse(configTextValue);
-    } catch (error) {
-      mensajeErrorComponente.value = 'Config JSON inválido';
-      return;
-    }
-
-    const componenteGuardado = {
-      id: componenteTemp.value.id,
-      nombre: nombreTrim,
-      descripcion: descripcionTrim,
-      configText: configTextValue,
-      subproyectos: Array.isArray(componenteTemp.value.subproyectos)
-        ? Array.from(new Set(componenteTemp.value.subproyectos.map((id) => Number(id)).filter((id) => id !== 0 && !Number.isNaN(id))))
-        : [],
-      tablas: Array.isArray(componenteTemp.value.tablas)
-        ? Array.from(new Set(componenteTemp.value.tablas.map((id) => Number(id)).filter((id) => id !== 0 && !Number.isNaN(id))))
-        : [],
-    };
-
-    if (index !== null && index !== undefined && index >= 0) {
-      componentes.value[index] = componenteGuardado;
-    } else {
-      componentes.value.push(componenteGuardado);
-    }
-
-    if (typeof cerrarDetalle === 'function') {
-      cerrarDetalle();
-    }
+function toggleComponente(componente) {
+  if (!componente || componente.id == null) {
+    return;
   }
+  const id = componente.id;
+  const index = expandedComponentes.value.indexOf(id);
+  if (index === -1) {
+    expandedComponentes.value.push(id);
+  } else {
+    expandedComponentes.value.splice(index, 1);
+  }
+}
 
-  cerrarDetalle = mostrarModal({
-    header: FormularioComponenteHeader,
-    body: FormularioComponenteBody,
-    footer: FormularioComponenteFooter,
-    headerProps: { componente: componenteTemp },
-    bodyProps: { componente: componenteTemp, mensajeError: mensajeErrorComponente, subproyectos, tablas },
-    footerProps: { onGuardar: guardarComponente, onCerrar: () => cerrarDetalle && cerrarDetalle() },
-  });
+function getComponenteError(componente) {
+  if (!componente || componente.id == null) {
+    return ref('');
+  }
+  if (!componenteErrores.value[componente.id]) {
+    componenteErrores.value[componente.id] = ref('');
+  }
+  return componenteErrores.value[componente.id];
+}
+
+function agregarComponente() {
+  const nuevo = {
+    id: generarIdTemporal(),
+    nombre: '',
+    descripcion: '',
+    configText: '{}',
+    subproyectos: [],
+    tablas: [],
+  };
+  componentes.value.push(nuevo);
+  getComponenteError(nuevo);
+  if (!isComponenteExpanded(nuevo.id)) {
+    expandedComponentes.value.push(nuevo.id);
+  }
 }
 
 function quitarComponente(index) {
