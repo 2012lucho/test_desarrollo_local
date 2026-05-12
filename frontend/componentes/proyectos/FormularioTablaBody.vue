@@ -148,6 +148,17 @@ const props = defineProps(['tabla', 'tablas', 'mensajeError']);
 
 const { mostrarModal } = useModal();
 
+const tabla = computed({
+  get: () => props.tabla?.value ?? props.tabla ?? {},
+  set: (val) => {
+    if (props.tabla?.value) {
+      props.tabla.value = val;
+    } else if (props.tabla && typeof props.tabla === 'object') {
+      Object.assign(props.tabla, val);
+    }
+  },
+});
+
 const generarIdTemporal = () => -(Date.now() + Math.floor(Math.random() * 1000));
 
 const tiposCampo = [
@@ -168,25 +179,25 @@ const tiposCampo = [
 ];
 
 const nombre = computed({
-  get: () => props.tabla?.value?.nombre ?? '',
+  get: () => tabla.value?.nombre ?? '',
   set: (val) => {
-    if (props.tabla?.value) {
-      props.tabla.value.nombre = val;
+    if (tabla.value) {
+      tabla.value.nombre = val;
     }
   },
 });
 
 const campos = computed({
   get: () => {
-    if (!props.tabla?.value) return [];
-    if (!Array.isArray(props.tabla.value.campos)) {
-      props.tabla.value.campos = [];
+    if (!tabla.value) return [];
+    if (!Array.isArray(tabla.value.campos)) {
+      tabla.value.campos = [];
     }
-    return props.tabla.value.campos;
+    return tabla.value.campos;
   },
   set: (val) => {
-    if (props.tabla?.value) {
-      props.tabla.value.campos = val;
+    if (tabla.value) {
+      tabla.value.campos = val;
     }
   },
 });

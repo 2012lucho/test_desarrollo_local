@@ -134,18 +134,29 @@
 
             <div v-if="seccionActiva === 'tablas'">
               <div class="mb-3">
-                <label class="form-label">Tablas de base de datos</label>
-                <ul class="list-group mb-2">
-                  <li v-for="(tabla, index) in tablas" :key="tabla.id ?? index" class="list-group-item d-flex justify-content-between align-items-center">
-                    <span class="flex-grow-1">{{ tabla.nombre || 'Tabla sin nombre' }}</span>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <label class="form-label mb-0">Tablas de base de datos</label>
+                  <button type="button" class="btn btn-sm btn-outline-primary" @click="agregarTabla()">Agregar tabla</button>
+                </div>
+                <div v-if="!tablas.length" class="text-muted mb-2">Sin tablas aún.</div>
+                <div v-for="(tabla, index) in tablas" :key="tabla.id ?? index" class="card mb-2">
+                  <div class="card-header d-flex justify-content-between align-items-center p-2">
+                    <div>
+                      <button type="button" class="btn btn-link p-0 text-start" style="text-decoration: none;" @click="toggleTabla(tabla)">
+                        <strong>{{ tabla.nombre || 'Tabla sin nombre' }}</strong>
+                      </button>
+                    </div>
                     <div class="btn-group">
-                      <button type="button" class="btn btn-sm btn-outline-primary" @click="editarTabla(index)">Editar</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" @click="toggleTabla(tabla)">
+                        {{ isTablaExpanded(tabla.id) ? 'Ocultar' : 'Mostrar' }}
+                      </button>
                       <button type="button" class="btn btn-sm btn-outline-danger" @click="quitarTabla(index)">Eliminar</button>
                     </div>
-                  </li>
-                  <li v-if="!tablas.length" class="list-group-item text-muted">Sin tablas aún.</li>
-                </ul>
-                <button type="button" class="btn btn-sm btn-outline-primary" @click="abrirDetalleTabla()">Agregar tabla</button>
+                  </div>
+                  <div v-show="isTablaExpanded(tabla.id)" class="card-body">
+                    <FormularioTablaBody :tabla="tabla" :tablas="tablas" :mensajeError="getTablaError(tabla)" />
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -161,20 +172,18 @@
 
 <script setup>
 import { computed, ref } from 'vue';
-import { useModal } from '../../composables/useModal.js';
 import FormularioComponenteBody from './FormularioComponenteBody.vue';
 import FormularioSubproyectoBody from './FormularioSubproyectoBody.vue';
-import FormularioTablaHeader from './FormularioTablaHeader.vue';
 import FormularioTablaBody from './FormularioTablaBody.vue';
-import FormularioTablaFooter from './FormularioTablaFooter.vue';
 
 const props = defineProps(['form', 'mensajeError']);
-const { mostrarModal } = useModal();
 const seccionActiva = ref('general');
 const expandedSubproyectos = ref([]);
 const subproyectoErrores = ref({});
 const expandedComponentes = ref([]);
 const componenteErrores = ref({});
+const expandedTablas = ref([]);
+const tablaErrores = ref({});
 
 const generarIdTemporal = () => -(Date.now() + Math.floor(Math.random() * 1000));
 
@@ -243,79 +252,53 @@ const tablas = computed({
   },
 });
 
-function abrirDetalleTabla(tabla = null, index = null) {
-  const tablaTemp = ref(
-    tabla
-      ? {
-          id: tabla.id ?? generarIdTemporal(),
-          nombre: tabla.nombre ?? '',
-          campos: Array.isArray(tabla.campos) ? [...tabla.campos] : [],
-        }
-      : { id: generarIdTemporal(), nombre: '', campos: [] }
-  );
-  const mensajeErrorTabla = ref('');
-  let cerrarDetalle = null;
-
-  function guardarTabla() {
-    mensajeErrorTabla.value = '';
-    const nombreTrim = String(tablaTemp.value.nombre ?? '').trim();
-    if (!nombreTrim) {
-      mensajeErrorTabla.value = 'Nombre de la tabla es requerido';
-      return;
-    }
-
-    const tablaGuardada = {
-      id: tablaTemp.value.id,
-      nombre: nombreTrim,
-      campos: Array.isArray(tablaTemp.value.campos)
-        ? tablaTemp.value.campos
-            .map((campo) => ({
-              id: campo.id ?? generarIdTemporal(),
-              nombre: String(campo.nombre ?? '').trim(),
-              tipo: String(campo.tipo || 'VARCHAR').trim() || 'VARCHAR',
-              longitud: (() => {
-                const valor = campo?.longitud;
-                return valor == null || valor === '' || Number.isNaN(Number(valor)) ? null : Number(valor);
-              })(),
-              descripcion: campo.descripcion ? String(campo.descripcion).trim() : null,
-              orden: Number.isNaN(Number(campo.orden)) ? 0 : Number(campo.orden),
-              nulo: Boolean(campo.nulo),
-              clave_primaria: Boolean(campo.clave_primaria),
-              autoincremental: Boolean(campo.autoincremental),
-              config: campo?.config ?? '{}',
-              relaciones: Array.isArray(campo.relaciones) ? campo.relaciones : [],
-            }))
-            .filter((campo) => campo.nombre)
-        : [],
-    };
-
-    if (index !== null && index !== undefined && index >= 0) {
-      tablas.value[index] = tablaGuardada;
-    } else {
-      tablas.value.push(tablaGuardada);
-    }
-
-    if (typeof cerrarDetalle === 'function') {
-      cerrarDetalle();
-    }
-  }
-
-  cerrarDetalle = mostrarModal({
-    header: FormularioTablaHeader,
-    body: FormularioTablaBody,
-    footer: FormularioTablaFooter,
-    headerProps: { tabla: tablaTemp },
-    bodyProps: { tabla: tablaTemp, tablas: tablas.value, mensajeError: mensajeErrorTabla },
-    footerProps: { onGuardar: guardarTabla, onCerrar: () => cerrarDetalle && cerrarDetalle() },
-  });
+function isTablaExpanded(id) {
+  return id != null && expandedTablas.value.includes(id);
 }
 
-function editarTabla(index) {
-  abrirDetalleTabla(tablas.value[index], index);
+function toggleTabla(tabla) {
+  if (!tabla || tabla.id == null) {
+    return;
+  }
+  const id = tabla.id;
+  const index = expandedTablas.value.indexOf(id);
+  if (index === -1) {
+    expandedTablas.value.push(id);
+  } else {
+    expandedTablas.value.splice(index, 1);
+  }
+}
+
+function getTablaError(tabla) {
+  if (!tabla || tabla.id == null) {
+    return ref('');
+  }
+  if (!tablaErrores.value[tabla.id]) {
+    tablaErrores.value[tabla.id] = ref('');
+  }
+  return tablaErrores.value[tabla.id];
+}
+
+function agregarTabla() {
+  const nueva = {
+    id: generarIdTemporal(),
+    nombre: '',
+    campos: [],
+  };
+  tablas.value.push(nueva);
+  getTablaError(nueva);
+  if (!isTablaExpanded(nueva.id)) {
+    expandedTablas.value.push(nueva.id);
+  }
 }
 
 function quitarTabla(index) {
+  const tablaId = tablas.value[index]?.id;
   tablas.value.splice(index, 1);
+  if (tablaId != null) {
+    expandedTablas.value = expandedTablas.value.filter((id) => id !== tablaId);
+    delete tablaErrores.value[tablaId];
+  }
 }
 
 
