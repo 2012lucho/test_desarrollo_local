@@ -68,21 +68,34 @@
 
             <div v-if="seccionActiva === 'subproyectos'">
               <div class="mb-3">
-                <label class="form-label">Subproyectos</label>
-                <ul class="list-group mb-2">
-                  <li v-for="(sub, index) in subproyectos" :key="index" class="list-group-item d-flex justify-content-between align-items-center">
-                    <span class="flex-grow-1">
-                      {{ sub.nombre || 'Subproyecto sin nombre' }}
-                      <small class="text-muted">({{ sub.tipo || 'backend' }})</small>
-                    </span>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <label class="form-label mb-0">Subproyectos</label>
+                  <button type="button" class="btn btn-sm btn-outline-primary" @click="agregarSubproyecto()">Agregar subproyecto</button>
+                </div>
+                <div v-if="!subproyectos.length" class="text-muted mb-2">Sin subproyectos aún.</div>
+                <div v-for="(sub, index) in subproyectos" :key="sub.id ?? index" class="card mb-2">
+                  <div class="card-header d-flex justify-content-between align-items-center p-2">
+                    <div>
+                      <button type="button" class="btn btn-link p-0 text-start" style="text-decoration: none;" @click="toggleSubproyecto(sub)">
+                        <strong>{{ sub.nombre || 'Subproyecto sin nombre' }}</strong>
+                        <small class="text-muted">({{ sub.tipo || 'backend' }})</small>
+                      </button>
+                    </div>
                     <div class="btn-group">
-                      <button type="button" class="btn btn-sm btn-outline-primary" @click="abrirDetalleSubproyecto(sub, index)">Ver detalles</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" @click="toggleSubproyecto(sub)">
+                        {{ isSubproyectoExpanded(sub.id) ? 'Ocultar' : 'Mostrar' }}
+                      </button>
                       <button type="button" class="btn btn-sm btn-outline-danger" @click="quitarSubproyecto(index)">Eliminar</button>
                     </div>
-                  </li>
-                  <li v-if="!subproyectos.length" class="list-group-item text-muted">Sin subproyectos aún.</li>
-                </ul>
-                <button type="button" class="btn btn-sm btn-outline-primary" @click="abrirDetalleSubproyecto()">Agregar subproyecto</button>
+                  </div>
+                  <div v-show="isSubproyectoExpanded(sub.id)" class="card-body">
+                    <FormularioSubproyectoBody
+                      :subproyecto="sub"
+                      :mensajeError="getSubproyectoError(sub)"
+                      :componentes="componentes"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -136,9 +149,7 @@ import { useModal } from '../../composables/useModal.js';
 import FormularioComponenteHeader from './FormularioComponenteHeader.vue';
 import FormularioComponenteBody from './FormularioComponenteBody.vue';
 import FormularioComponenteFooter from './FormularioComponenteFooter.vue';
-import FormularioSubproyectoHeader from './FormularioSubproyectoHeader.vue';
 import FormularioSubproyectoBody from './FormularioSubproyectoBody.vue';
-import FormularioSubproyectoFooter from './FormularioSubproyectoFooter.vue';
 import FormularioTablaHeader from './FormularioTablaHeader.vue';
 import FormularioTablaBody from './FormularioTablaBody.vue';
 import FormularioTablaFooter from './FormularioTablaFooter.vue';
@@ -146,6 +157,8 @@ import FormularioTablaFooter from './FormularioTablaFooter.vue';
 const props = defineProps(['form', 'mensajeError']);
 const { mostrarModal } = useModal();
 const seccionActiva = ref('general');
+const expandedSubproyectos = ref([]);
+const subproyectoErrores = ref({});
 
 const generarIdTemporal = () => -(Date.now() + Math.floor(Math.random() * 1000));
 
@@ -289,77 +302,6 @@ function quitarTabla(index) {
   tablas.value.splice(index, 1);
 }
 
-function abrirDetalleSubproyecto(subproyecto = null, index = null) {
-  const subproyectoTemp = ref(
-    subproyecto
-      ? {
-          id: subproyecto.id ?? generarIdTemporal(),
-          nombre: subproyecto.nombre ?? '',
-          descripcion: subproyecto.descripcion ?? '',
-          tipo: subproyecto.tipo ?? 'backend',
-          tecnologias: Array.isArray(subproyecto.tecnologias)
-            ? [...subproyecto.tecnologias]
-            : [],
-          componentes: Array.isArray(subproyecto.componentes)
-            ? [...subproyecto.componentes]
-            : componentes.value
-                .filter((item) => Array.isArray(item.subproyectos) && item.subproyectos.includes(subproyecto.id))
-                .map((item) => item.id)
-                .filter((id) => id !== undefined),
-        }
-      : { id: generarIdTemporal(), nombre: '', descripcion: '', tipo: 'backend', tecnologias: [], componentes: [] }
-  );
-  const mensajeErrorSubproyecto = ref('');
-  let cerrarDetalle = null;
-
-  function guardarSubproyecto() {
-    mensajeErrorSubproyecto.value = '';
-    const nombreTrim = String(subproyectoTemp.value.nombre ?? '').trim();
-
-    if (!nombreTrim) {
-      mensajeErrorSubproyecto.value = 'Nombre del subproyecto es requerido';
-      return;
-    }
-
-    const subproyectoGuardado = {
-      id: subproyectoTemp.value.id,
-      nombre: nombreTrim,
-      descripcion: String(subproyectoTemp.value.descripcion ?? '').trim(),
-      tipo: subproyectoTemp.value.tipo,
-      tecnologias: Array.isArray(subproyectoTemp.value.tecnologias)
-        ? Array.from(new Set(subproyectoTemp.value.tecnologias.map((id) => Number(id)).filter((id) => id > 0)))
-        : [],
-      componentes: Array.isArray(subproyectoTemp.value.componentes)
-        ? Array.from(new Set(subproyectoTemp.value.componentes.map((id) => Number(id)).filter((id) => id !== 0 && !Number.isNaN(id))))
-        : [],
-    };
-
-    if (index !== null && index !== undefined && index >= 0) {
-      subproyectos.value[index] = subproyectoGuardado;
-    } else {
-      subproyectos.value.push(subproyectoGuardado);
-    }
-
-    actualizarComponentesRelacionados(subproyectoGuardado.id, subproyectoGuardado.componentes);
-
-    if (typeof cerrarDetalle === 'function') {
-      cerrarDetalle();
-    }
-  }
-
-  cerrarDetalle = mostrarModal({
-    header: FormularioSubproyectoHeader,
-    body: FormularioSubproyectoBody,
-    footer: FormularioSubproyectoFooter,
-    headerProps: { subproyecto: subproyectoTemp },
-    bodyProps: {
-      subproyecto: subproyectoTemp,
-      mensajeError: mensajeErrorSubproyecto,
-      componentes,
-    },
-    footerProps: { onGuardar: guardarSubproyecto, onCerrar: () => cerrarDetalle && cerrarDetalle() },
-  });
-}
 
 function actualizarComponentesRelacionados(subproyectoId, seleccionados) {
   if (!subproyectoId) return;
@@ -382,11 +324,56 @@ function quitarSubproyecto(index) {
   const subproyectoId = subproyectos.value[index]?.id;
   subproyectos.value.splice(index, 1);
   if (subproyectoId !== undefined) {
+    expandedSubproyectos.value = expandedSubproyectos.value.filter((id) => id !== subproyectoId);
+    delete subproyectoErrores.value[subproyectoId];
     componentes.value.forEach((componente) => {
       if (Array.isArray(componente.subproyectos)) {
         componente.subproyectos = componente.subproyectos.filter((id) => id !== subproyectoId);
       }
     });
+  }
+}
+
+function isSubproyectoExpanded(id) {
+  return id != null && expandedSubproyectos.value.includes(id);
+}
+
+function toggleSubproyecto(subproyecto) {
+  if (!subproyecto || subproyecto.id == null) {
+    return;
+  }
+  const id = subproyecto.id;
+  const index = expandedSubproyectos.value.indexOf(id);
+  if (index === -1) {
+    expandedSubproyectos.value.push(id);
+  } else {
+    expandedSubproyectos.value.splice(index, 1);
+  }
+}
+
+function getSubproyectoError(subproyecto) {
+  if (!subproyecto || subproyecto.id == null) {
+    return ref('');
+  }
+  if (!subproyectoErrores.value[subproyecto.id]) {
+    subproyectoErrores.value[subproyecto.id] = ref('');
+  }
+  return subproyectoErrores.value[subproyecto.id];
+}
+
+function agregarSubproyecto() {
+  const nuevo = {
+    id: generarIdTemporal(),
+    nombre: '',
+    descripcion: '',
+    tipo: 'backend',
+    tecnologias: [],
+    componentes: [],
+  };
+  subproyectos.value.push(nuevo);
+  getSubproyectoError(nuevo);
+  if (!isSubproyectoExpanded(nuevo.id)) {
+    expandedSubproyectos.value.push(nuevo.id);
   }
 }
 

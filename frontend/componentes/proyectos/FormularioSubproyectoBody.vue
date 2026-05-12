@@ -149,6 +149,17 @@ const cargandoTecnologias = ref(false);
 const mostrarSeleccion = ref(false);
 const mostrarSeleccionComponentes = ref(false);
 
+const subproyecto = computed({
+  get: () => props.subproyecto?.value ?? props.subproyecto ?? {},
+  set: (val) => {
+    if (props.subproyecto?.value) {
+      props.subproyecto.value = val;
+    } else if (props.subproyecto && typeof props.subproyecto === 'object') {
+      Object.assign(props.subproyecto, val);
+    }
+  },
+});
+
 const componentes = computed(() => {
   const value = props.componentes?.value ?? props.componentes;
   return Array.isArray(value) ? value : [];
@@ -156,15 +167,15 @@ const componentes = computed(() => {
 
 const selectedTecnologias = computed({
   get: () => {
-    if (!props.subproyecto?.value) return [];
-    if (!Array.isArray(props.subproyecto.value.tecnologias)) {
-      props.subproyecto.value.tecnologias = [];
+    if (!subproyecto.value) return [];
+    if (!Array.isArray(subproyecto.value.tecnologias)) {
+      subproyecto.value.tecnologias = [];
     }
-    return props.subproyecto.value.tecnologias;
+    return subproyecto.value.tecnologias;
   },
   set: (val) => {
-    if (props.subproyecto?.value) {
-      props.subproyecto.value.tecnologias = Array.isArray(val)
+    if (subproyecto.value) {
+      subproyecto.value.tecnologias = Array.isArray(val)
         ? Array.from(new Set(val.map((id) => Number(id)).filter((id) => id > 0)))
         : [];
     }
@@ -176,24 +187,24 @@ const tecnologiasSeleccionadas = computed(() => {
 });
 
 const nombre = computed({
-  get: () => props.subproyecto?.value?.nombre ?? '',
-  set: (val) => { if (props.subproyecto?.value) props.subproyecto.value.nombre = val; },
+  get: () => subproyecto.value?.nombre ?? '',
+  set: (val) => { if (subproyecto.value) subproyecto.value.nombre = val; },
 });
 
 const tipoSubproyecto = computed({
-  get: () => props.subproyecto?.value?.tipo ?? 'backend',
+  get: () => subproyecto.value?.tipo ?? 'backend',
   set: (value) => {
-    if (props.subproyecto?.value) {
-      props.subproyecto.value.tipo = value;
+    if (subproyecto.value) {
+      subproyecto.value.tipo = value;
     }
   },
 });
 
 const descripcion = computed({
-  get: () => props.subproyecto?.value?.descripcion ?? '',
+  get: () => subproyecto.value?.descripcion ?? '',
   set: (value) => {
-    if (props.subproyecto?.value) {
-      props.subproyecto.value.descripcion = value;
+    if (subproyecto.value) {
+      subproyecto.value.descripcion = value;
     }
   },
 });
@@ -215,15 +226,15 @@ watch(tipoSubproyecto, () => {
 
 const selectedComponentes = computed({
   get: () => {
-    if (!props.subproyecto?.value) return [];
-    if (!Array.isArray(props.subproyecto.value.componentes)) {
-      props.subproyecto.value.componentes = [];
+    if (!subproyecto.value) return [];
+    if (!Array.isArray(subproyecto.value.componentes)) {
+      subproyecto.value.componentes = [];
     }
-    return props.subproyecto.value.componentes;
+    return subproyecto.value.componentes;
   },
   set: (val) => {
-    if (props.subproyecto?.value) {
-      props.subproyecto.value.componentes = Array.isArray(val)
+    if (subproyecto.value) {
+      subproyecto.value.componentes = Array.isArray(val)
         ? Array.from(new Set(val.map((id) => Number(id)).filter((id) => id !== 0 && !Number.isNaN(id))))
         : [];
     }
