@@ -64,9 +64,16 @@
         >
         <div class="node-header">
           <span>{{ getNodeLabel(node) }}</span>
-          <button class="btn btn-edit" @click.stop="editarAgente(node.id)" type="button">Editar</button>
         </div>
         <div class="node-body">
+          <div class="node-actions">
+            <button class="icon-button" @pointerdown.stop @click.stop="editarAgente(node.id)" type="button" aria-label="Editar agente">
+              ✏️
+            </button>
+            <button class="icon-button icon-danger" @pointerdown.stop @click.stop="eliminarAgente(node.id)" type="button" aria-label="Eliminar agente">
+              🗑️
+            </button>
+          </div>
           <div class="handle input-handle" @pointerdown.stop.prevent="finishConnection(node)" @click.stop>
             <span class="handle-dot" />
             Entrada
@@ -166,7 +173,8 @@ function abrirFormularioAgente(agente = null) {
     descripcion: agente?.descripcion ?? '',
     promt_sistema: agente?.promt_sistema ?? '',
   });
-  const editandoId = ref(agente?.id ?? null);
+  const originalId = agente?.id ?? null;
+  const isEditing = !!originalId;
   const mensajeErrorForm = ref('');
   const cargandoForm = ref(false);
   let cerrar = null;
@@ -187,16 +195,17 @@ function abrirFormularioAgente(agente = null) {
     cargandoForm.value = true;
     const payload = {
       id,
-      originalId: editandoId.value,
+      originalId,
       nombre,
       descripcion: String(form.value.descripcion || '').trim(),
       promt_sistema: String(form.value.promt_sistema || '').trim(),
     };
-    const accion = editandoId.value ? 'agentes:update' : 'agentes:create';
+    const accion = isEditing ? 'agentes:update' : 'agentes:create';
 
     socket.emit(accion, payload, (resp) => {
       cargandoForm.value = false;
       if (resp.ok) {
+        cargarAgentes();
         if (typeof cerrar === 'function') cerrar();
       } else {
         mensajeErrorForm.value = resp.error || 'Error guardando agente';
@@ -209,9 +218,9 @@ function abrirFormularioAgente(agente = null) {
       header: FormularioAgenteHeader,
       body: FormularioAgenteBody,
       footer: FormularioAgenteFooter,
-      headerProps: { editandoId },
+      headerProps: { isEditing },
       bodyProps: { form, mensajeError: mensajeErrorForm },
-      footerProps: { cargando: cargandoForm, onGuardar: guardar, onCerrar: () => cerrar && cerrar() },
+      footerProps: { cargando: cargandoForm.value, onGuardar: guardar, onCerrar: () => cerrar && cerrar() },
       fullscreen: false,
     });
   }
@@ -223,6 +232,17 @@ function editarAgente(id) {
   const agente = agentesMap.value[id];
   if (!agente) return;
   abrirFormularioAgente(agente);
+}
+
+function eliminarAgente(id) {
+  if (!confirm('¿Eliminar este agente?')) return;
+  socket.emit('agentes:delete', { id }, (resp) => {
+    if (resp.ok) {
+      cargarAgentes();
+    } else {
+      mensajeError.value = resp.error || 'Error eliminando agente';
+    }
+  });
 }
 
 function removeNode(id) {
@@ -311,7 +331,7 @@ const tempConnectionPath = computed(() => {
 });
 
 function startNodeDrag(node, event) {
-  if (event.target.closest('.handle') || event.target.closest('.btn-close')) return;
+  if (event.target.closest('.handle') || event.target.closest('.btn-close') || event.target.closest('button')) return;
   const pointerX = (event.clientX - canvasRect.left) / zoom.value;
   const pointerY = (event.clientY - canvasRect.top) / zoom.value;
   const offsetX = pointerX - node.x;
@@ -477,6 +497,41 @@ onUnmounted(() => {
 
 .btn-edit:hover {
   background: #1a5dc6;
+}
+
+.icon-button {
+  border: 1px solid #cfe2ff;
+  background: #ffffff;
+  color: #1d3557;
+  width: 2.2rem;
+  height: 2.2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.7rem;
+  font-size: 1.05rem;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.icon-button:hover {
+  background: #e7f1ff;
+  border-color: #2c7be5;
+}
+
+.icon-danger {
+  border-color: #f8d7da;
+  color: #b02a5a;
+}
+
+.icon-danger:hover {
+  background: #f8d7da;
+}
+
+.node-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
 }
 
 .btn-close {
