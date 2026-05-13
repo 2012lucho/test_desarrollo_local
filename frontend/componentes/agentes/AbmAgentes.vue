@@ -2,8 +2,12 @@
   <div class="agentes-page">
     <div class="toolbar">
       <button class="btn" @click="addNode">+ Nuevo nodo</button>
+      <button class="btn" @click="zoomOut">- Alejar</button>
+      <button class="btn" @click="zoomReset">100%</button>
+      <button class="btn" @click="zoomIn">+ Acercar</button>
       <div class="toolbar-status">
-        <span v-if="connectionStart">
+        <span>Zoom: <strong>{{ Math.round(zoom * 100) }}%</strong></span>
+        <span v-if="connectionStart" class="toolbar-connection-status">
           Conectando desde <strong>{{ connectionStart.fromLabel }}</strong>. Haz clic en la entrada de otro nodo.
         </span>
         <span v-else>
@@ -18,39 +22,41 @@
       @pointermove="onCanvasPointerMove"
       @pointerup="endPointerActions"
       @click.self="cancelConnection"
+      @wheel.prevent="onCanvasWheel"
     >
-      <svg class="canvas-svg" :width="canvasWidth" :height="canvasHeight">
-        <defs>
-          <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#2c7be5" />
-          </marker>
-        </defs>
+      <div class="canvas-content" :style="canvasTransformStyle">
+        <svg class="canvas-svg" :width="canvasWidth" :height="canvasHeight">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#2c7be5" />
+            </marker>
+          </defs>
 
-        <path
-          v-for="conexion in conexiones"
-          :key="conexion.id"
-          :d="connectionPath(conexion)"
-          class="connection-line"
-          marker-end="url(#arrow)"
-        />
+          <path
+            v-for="conexion in conexiones"
+            :key="conexion.id"
+            :d="connectionPath(conexion)"
+            class="connection-line"
+            marker-end="url(#arrow)"
+          />
 
-        <path
-          v-if="connectionStart"
-          :d="tempConnectionPath"
-          class="connection-line connection-temp"
-          marker-end="url(#arrow)"
-        />
-      </svg>
+          <path
+            v-if="connectionStart"
+            :d="tempConnectionPath"
+            class="connection-line connection-temp"
+            marker-end="url(#arrow)"
+          />
+        </svg>
 
-      <div class="canvas-grid" />
+        <div class="canvas-grid" />
 
-      <div
-        v-for="node in nodes"
-        :key="node.id"
-        class="node-card"
-        :style="nodeStyle(node)"
-        @pointerdown="startNodeDrag(node, $event)"
-      >
+        <div
+          v-for="node in nodes"
+          :key="node.id"
+          class="node-card"
+          :style="nodeStyle(node)"
+          @pointerdown="startNodeDrag(node, $event)"
+        >
         <div class="node-header">
           <span>{{ node.label }}</span>
           <button class="btn-close" @click.stop="removeNode(node.id)">×</button>
@@ -65,6 +71,7 @@
             <span class="handle-dot" />
           </div>
         </div>
+      </div>
       </div>
     </div>
   </div>
@@ -83,6 +90,15 @@ const connectionStart = ref(null);
 const draggingNode = ref(null);
 const canvasRect = reactive({ left: 0, top: 0, width: 0, height: 0 });
 const pointerPos = reactive({ x: 0, y: 0 });
+const zoom = ref(1);
+const minZoom = 0.5;
+const maxZoom = 2.5;
+const zoomStep = 0.1;
+
+const canvasTransformStyle = computed(() => ({
+  transform: `scale(${zoom.value})`,
+  transformOrigin: '0 0',
+}));
 
 const NODE_WIDTH = 220;
 const NODE_HEIGHT = 110;
@@ -159,6 +175,23 @@ function cancelConnection() {
   connectionStart.value = null;
 }
 
+function zoomIn() {
+  zoom.value = Math.min(maxZoom, zoom.value + zoomStep);
+}
+
+function zoomOut() {
+  zoom.value = Math.max(minZoom, zoom.value - zoomStep);
+}
+
+function zoomReset() {
+  zoom.value = 1;
+}
+
+function onCanvasWheel(event) {
+  const delta = event.deltaY > 0 ? -zoomStep : zoomStep;
+  zoom.value = Math.min(maxZoom, Math.max(minZoom, zoom.value + delta));
+}
+
 function connectionPath(connection) {
   const from = connectorPosition(nodes.value.find((n) => n.id === connection.from), 'output');
   const to = connectorPosition(nodes.value.find((n) => n.id === connection.to), 'input');
@@ -177,21 +210,25 @@ const tempConnectionPath = computed(() => {
 
 function startNodeDrag(node, event) {
   if (event.target.closest('.handle') || event.target.closest('.btn-close')) return;
-  const offsetX = event.clientX - canvasRect.left - node.x;
-  const offsetY = event.clientY - canvasRect.top - node.y;
+  const pointerX = (event.clientX - canvasRect.left) / zoom.value;
+  const pointerY = (event.clientY - canvasRect.top) / zoom.value;
+  const offsetX = pointerX - node.x;
+  const offsetY = pointerY - node.y;
   draggingNode.value = { node, offsetX, offsetY, pointerId: event.pointerId };
   event.currentTarget.setPointerCapture(event.pointerId);
 }
 
 function onCanvasPointerMove(event) {
   updateCanvasRect();
-  pointerPos.x = event.clientX - canvasRect.left;
-  pointerPos.y = event.clientY - canvasRect.top;
+  const pointerX = (event.clientX - canvasRect.left) / zoom.value;
+  const pointerY = (event.clientY - canvasRect.top) / zoom.value;
+  pointerPos.x = pointerX;
+  pointerPos.y = pointerY;
 
   if (draggingNode.value) {
     const { node, offsetX, offsetY } = draggingNode.value;
-    node.x = Math.max(0, Math.min(canvasRect.width - NODE_WIDTH, event.clientX - canvasRect.left - offsetX));
-    node.y = Math.max(0, Math.min(canvasRect.height - NODE_HEIGHT, event.clientY - canvasRect.top - offsetY));
+    node.x = Math.max(0, Math.min(canvasRect.width / zoom.value - NODE_WIDTH, pointerX - offsetX));
+    node.y = Math.max(0, Math.min(canvasRect.height / zoom.value - NODE_HEIGHT, pointerY - offsetY));
   }
 }
 
@@ -248,6 +285,13 @@ onUnmounted(() => {
   border-radius: 1rem;
   overflow: hidden;
   background: #f8fbff;
+}
+
+.canvas-content {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .canvas-svg {
