@@ -53,10 +53,15 @@
         <span class="menu-icon">🤖</span>
         <span v-if="!collapsed">Ollama</span>
       </router-link>
-      <a class="nav-link d-flex align-items-center gap-2" href="#" title="Configuración">
+      <router-link
+        class="nav-link d-flex align-items-center gap-2"
+        to="/agentes"
+        active-class="active"
+        title="Agentes"
+      >
         <span class="menu-icon">⚙️</span>
-        <span v-if="!collapsed">Configuración</span>
-      </a>
+        <span v-if="!collapsed">Agentes</span>
+      </router-link>
     </nav>
 
     <div class="mt-4" v-if="!collapsed">
