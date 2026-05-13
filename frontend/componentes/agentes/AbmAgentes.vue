@@ -205,8 +205,8 @@ function abrirFormularioAgente(agente = null) {
     socket.emit(accion, payload, (resp) => {
       cargandoForm.value = false;
       if (resp.ok) {
-        cargarAgentes();
         if (typeof cerrar === 'function') cerrar();
+        cargarAgentes();
       } else {
         mensajeErrorForm.value = resp.error || 'Error guardando agente';
       }
