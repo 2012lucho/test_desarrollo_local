@@ -22,7 +22,7 @@ async function getPromptSistemaDefault() {
  * - ollama:list
  * - ollama:pull      { model }
  * - ollama:delete    { model }
- * - ollama:generate  { model, prompt, requestId }
+ * - ollama:generate  { model?, prompt, requestId, agentId? }
  * - ollama:stop      { requestId? }
  *
  * Respuestas por callback de ack o emisión al socket:
@@ -145,9 +145,32 @@ module.exports = (socket) => {
 
   // ── Genera texto con streaming token a token ──────────────────────────────
   socket.on('ollama:generate', async (payload, callback) => {
-    const { model, prompt, requestId } = payload || {};
-    if (!model || !prompt) {
-      return safeCallback(callback, { ok: false, error: 'Se requieren model y prompt' });
+    const { model, prompt, requestId, agentId } = payload || {};
+    if (!prompt) {
+      return safeCallback(callback, { ok: false, error: 'Se requiere prompt' });
+    }
+
+    let selectedModel = model;
+    let systemPrompt = await getPromptSistemaDefault();
+
+    if (agentId) {
+      try {
+        const agenteDb = await db('agentes').where({ id: String(agentId).trim() }).first();
+        if (agenteDb) {
+          if (agenteDb.modelo && agenteDb.modelo.trim()) {
+            selectedModel = agenteDb.modelo.trim();
+          }
+          if (agenteDb.promt_sistema && agenteDb.promt_sistema.trim()) {
+            systemPrompt = agenteDb.promt_sistema.trim();
+          }
+        }
+      } catch (err) {
+        console.error('ollama:generate cargar agente error', err);
+      }
+    }
+
+    if (!selectedModel) {
+      return safeCallback(callback, { ok: false, error: 'Se requiere model' });
     }
 
     const controller = new AbortController();
@@ -156,9 +179,8 @@ module.exports = (socket) => {
     }
 
     try {
-      const promptSistemaDefault = await getPromptSistemaDefault();
-      const agente = new Agente(model)
-        .setPromptSistema(promptSistemaDefault)
+      const agente = new Agente(selectedModel)
+        .setPromptSistema(systemPrompt)
         .setEntrada(prompt);
 
       const resultado = await agente.ejecutar({

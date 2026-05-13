@@ -101,6 +101,7 @@ const socket = io(import.meta.env.VITE_API_URL);
 const { mostrarModal } = useModal();
 const canvasRef = ref(null);
 const agentes = ref([]);
+const availableModels = ref([]);
 const mensajeError = ref('');
 const nodes = ref([]);
 const agentesMap = computed(() => Object.fromEntries(agentes.value.map((agente) => [agente.id, agente])));
@@ -166,12 +167,23 @@ function cargarAgentes() {
   });
 }
 
+function loadAvailableModels() {
+  socket.emit('ollama:list', null, (resp) => {
+    if (resp.ok) {
+      availableModels.value = resp.data ?? [];
+    } else {
+      availableModels.value = [];
+    }
+  });
+}
+
 function abrirFormularioAgente(agente = null) {
   const form = ref({
     id: agente?.id ?? '',
     nombre: agente?.nombre ?? '',
     descripcion: agente?.descripcion ?? '',
     promt_sistema: agente?.promt_sistema ?? '',
+    modelo: agente?.modelo ?? (availableModels.value[0]?.name ?? ''),
   });
   const originalId = agente?.id ?? null;
   const isEditing = !!originalId;
@@ -192,6 +204,18 @@ function abrirFormularioAgente(agente = null) {
       return;
     }
 
+    const modelo = String(form.value.modelo || '').trim();
+    if (!modelo) {
+      mensajeErrorForm.value = 'El modelo de Ollama es requerido';
+      return;
+    }
+
+    const modeloValido = availableModels.value.some((model) => String(model.name ?? model) === modelo);
+    if (!modeloValido) {
+      mensajeErrorForm.value = 'Selecciona un modelo válido de Ollama';
+      return;
+    }
+
     cargandoForm.value = true;
     const payload = {
       id,
@@ -199,6 +223,7 @@ function abrirFormularioAgente(agente = null) {
       nombre,
       descripcion: String(form.value.descripcion || '').trim(),
       promt_sistema: String(form.value.promt_sistema || '').trim(),
+      modelo,
     };
     const accion = isEditing ? 'agentes:update' : 'agentes:create';
 
@@ -219,13 +244,11 @@ function abrirFormularioAgente(agente = null) {
       body: FormularioAgenteBody,
       footer: FormularioAgenteFooter,
       headerProps: { isEditing },
-      bodyProps: { form, mensajeError: mensajeErrorForm },
+      bodyProps: { form, mensajeError: mensajeErrorForm, models: availableModels.value },
       footerProps: { cargando: cargandoForm.value, onGuardar: guardar, onCerrar: () => cerrar && cerrar() },
       fullscreen: false,
     });
   }
-
-  abrirModal();
 }
 
 function editarAgente(id) {
@@ -361,6 +384,7 @@ function endPointerActions() {
 onMounted(() => {
   updateCanvasRect();
   cargarAgentes();
+  loadAvailableModels();
   window.addEventListener('resize', updateCanvasRect);
   socket.on('agentes:changed', cargarAgentes);
 });

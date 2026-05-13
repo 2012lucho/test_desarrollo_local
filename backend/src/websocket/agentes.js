@@ -42,6 +42,7 @@ module.exports = (socket, io) => {
     const nombre = String(payload?.nombre || '').trim();
     const descripcion = String(payload?.descripcion || '').trim() || null;
     const promt_sistema = String(payload?.promt_sistema || '').trim() || null;
+    const modelo = String(payload?.modelo || '').trim() || null;
 
     if (!id) {
       return safeCallback(callback, { ok: false, error: 'El id es requerido' });
@@ -51,7 +52,7 @@ module.exports = (socket, io) => {
     }
 
     try {
-      await db('agentes').insert({ id, nombre, descripcion, promt_sistema });
+      await db('agentes').insert({ id, nombre, descripcion, promt_sistema, modelo });
       const agente = await db('agentes').where({ id }).first();
       io.emit('agentes:changed', { action: 'created', agente });
       safeCallback(callback, { ok: true, data: agente });
@@ -67,6 +68,7 @@ module.exports = (socket, io) => {
     const nombre = String(payload?.nombre || '').trim();
     const descripcion = String(payload?.descripcion || '').trim() || null;
     const promt_sistema = String(payload?.promt_sistema || '').trim() || null;
+    const modelo = String(payload?.modelo || '').trim() || null;
 
     if (!originalId) {
       return safeCallback(callback, { ok: false, error: 'Id original es requerido para actualizar' });
@@ -79,7 +81,7 @@ module.exports = (socket, io) => {
     }
 
     try {
-      const affected = await db('agentes').where({ id: originalId }).update({ id: newId, nombre, descripcion, promt_sistema });
+      const affected = await db('agentes').where({ id: originalId }).update({ id: newId, nombre, descripcion, promt_sistema, modelo });
       if (!affected) {
         return safeCallback(callback, { ok: false, error: 'Agente no encontrado', status: 404 });
       }
