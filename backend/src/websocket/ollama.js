@@ -1,4 +1,15 @@
+const path = require('path');
+const fs = require('fs');
 const OLLAMA_BASE = process.env.OLLAMA_URL || 'http://localhost:11434';
+const Agente = require(path.resolve(__dirname, '../../../agentes/agentesMin.js'));
+const PROMPT_SISTEMA_PATH = path.resolve(__dirname, '../../../agentes/promts/testModelo.md');
+let promptSistemaDefault = '';
+
+try {
+  promptSistemaDefault = fs.readFileSync(PROMPT_SISTEMA_PATH, 'utf8').trim();
+} catch (err) {
+  console.error('No se pudo cargar prompt de sistema:', err.message);
+}
 
 /**
  * Manejador de eventos WebSocket para interacción con Ollama.
@@ -117,51 +128,29 @@ module.exports = (socket) => {
     }
 
     try {
-      const resp = await fetch(`${OLLAMA_BASE}/api/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, prompt, stream: true }),
+      const agente = new Agente(model)
+        .setPromptSistema(promptSistemaDefault)
+        .setEntrada(prompt);
+
+      const resultado = await agente.ejecutar({
+        onPartial: (token) => {
+          socket.emit('ollama:generate:chunk', {
+            requestId,
+            token,
+            done: false,
+          });
+        },
+        onComplete: (resultadoFinal) => {
+          socket.emit('ollama:generate:chunk', {
+            requestId,
+            token: '',
+            done: true,
+            fullResponse: resultadoFinal.respuesta,
+          });
+        },
       });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let fullResponse = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop();
-
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const chunk = JSON.parse(line);
-            if (chunk.response) {
-              fullResponse += chunk.response;
-              socket.emit('ollama:generate:chunk', {
-                requestId,
-                token: chunk.response,
-                done: false,
-              });
-            }
-            if (chunk.done) {
-              socket.emit('ollama:generate:chunk', {
-                requestId,
-                token: '',
-                done: true,
-                fullResponse,
-              });
-              safeCallback(callback, { ok: true, data: { fullResponse } });
-              return;
-            }
-          } catch { /* línea incompleta, ignorar */ }
-        }
-      }
-      safeCallback(callback, { ok: true, data: { fullResponse } });
+      safeCallback(callback, { ok: true, data: { fullResponse: resultado.respuesta } });
     } catch (err) {
       console.error('ollama:generate error', err);
       safeCallback(callback, { ok: false, error: `Error generando respuesta: ${err.message}` });

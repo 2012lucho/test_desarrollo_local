@@ -131,3 +131,5 @@ class Agente {
     return partes.join('\n\n');
   }
 }
+
+module.exports = Agente;
