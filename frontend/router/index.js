@@ -2,14 +2,13 @@ import { createRouter, createWebHashHistory } from 'vue-router';
 import AbmProyectos from '../componentes/proyectos/abmProyectos.vue';
 import AbmOllama from '../componentes/ollama/abmOllama.vue';
 import AbmTecnologias from '../componentes/tecnologias/abmTecnologias.vue';
+import ChatInicio from '../componentes/ollama/ChatInicio.vue';
 
 const routes = [
   {
     path: '/',
     name: 'Inicio',
-    component: {
-      template: `<div class="alert alert-info my-3">Seleccione una opción desde la barra lateral.</div>`,
-    },
+    component: ChatInicio,
   },
   {
     path: '/proyectos',
