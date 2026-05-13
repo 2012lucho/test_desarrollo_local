@@ -1,7 +1,7 @@
 <template>
   <div class="agentes-page">
     <div class="toolbar">
-      <button class="btn" @click="addNode">+ Nuevo nodo</button>
+      <button class="btn" @click="abrirNuevoAgente">+ Nuevo agente</button>
       <button class="btn" @click="zoomOut">- Alejar</button>
       <button class="btn" @click="zoomReset">100%</button>
       <button class="btn" @click="zoomIn">+ Acercar</button>
@@ -15,6 +15,7 @@
         </span>
       </div>
     </div>
+    <div v-if="mensajeError" class="toolbar-error">{{ mensajeError }}</div>
 
     <div
       class="canvas-area"
@@ -50,6 +51,10 @@
 
         <div class="canvas-grid" />
 
+        <div v-if="!nodes.length" class="canvas-empty">
+          Sin agentes registrados. Usa + Nuevo agente para crear uno.
+        </div>
+
         <div
           v-for="node in nodes"
           :key="node.id"
@@ -58,8 +63,8 @@
           @pointerdown="startNodeDrag(node, $event)"
         >
         <div class="node-header">
-          <span>{{ node.label }}</span>
-          <button class="btn-close" @click.stop="removeNode(node.id)">×</button>
+          <span>{{ getNodeLabel(node) }}</span>
+          <button class="btn btn-edit" @click.stop="editarAgente(node.id)" type="button">Editar</button>
         </div>
         <div class="node-body">
           <div class="handle input-handle" @pointerdown.stop.prevent="finishConnection(node)" @click.stop>
@@ -79,12 +84,19 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
+import { io } from 'socket.io-client';
+import { useModal } from '../../composables/useModal.js';
+import FormularioAgenteHeader from './FormularioAgenteHeader.vue';
+import FormularioAgenteBody from './FormularioAgenteBody.vue';
+import FormularioAgenteFooter from './FormularioAgenteFooter.vue';
 
+const socket = io(import.meta.env.VITE_API_URL);
+const { mostrarModal } = useModal();
 const canvasRef = ref(null);
-const nodes = ref([
-  { id: 'node-1', label: 'Nodo 1', x: 60, y: 60 },
-  { id: 'node-2', label: 'Nodo 2', x: 420, y: 180 },
-]);
+const agentes = ref([]);
+const mensajeError = ref('');
+const nodes = ref([]);
+const agentesMap = computed(() => Object.fromEntries(agentes.value.map((agente) => [agente.id, agente])));
 const conexiones = ref([]);
 const connectionStart = ref(null);
 const draggingNode = ref(null);
@@ -117,14 +129,100 @@ function updateCanvasRect() {
   canvasRect.height = rect.height;
 }
 
-function addNode() {
-  const nextId = nodes.value.length + 1;
-  nodes.value.push({
-    id: `node-${Date.now()}`,
-    label: `Nodo ${nextId}`,
-    x: 80 + nextId * 40,
-    y: 80 + nextId * 30,
+function abrirNuevoAgente() {
+  abrirFormularioAgente(null);
+}
+
+function syncNodesWithAgentes() {
+  const existById = Object.fromEntries(nodes.value.map((node) => [node.id, node]));
+  nodes.value = agentes.value.map((agente, index) => {
+    if (existById[agente.id]) {
+      return existById[agente.id];
+    }
+    return {
+      id: agente.id,
+      x: 60 + (index % 3) * 260,
+      y: 60 + Math.floor(index / 3) * 180,
+    };
   });
+}
+
+function cargarAgentes() {
+  socket.emit('agentes:list', null, (resp) => {
+    if (resp.ok) {
+      agentes.value = resp.data || [];
+      syncNodesWithAgentes();
+      mensajeError.value = '';
+    } else {
+      mensajeError.value = resp.error || 'Error cargando agentes';
+    }
+  });
+}
+
+function abrirFormularioAgente(agente = null) {
+  const form = ref({
+    id: agente?.id ?? '',
+    nombre: agente?.nombre ?? '',
+    descripcion: agente?.descripcion ?? '',
+    promt_sistema: agente?.promt_sistema ?? '',
+  });
+  const editandoId = ref(agente?.id ?? null);
+  const mensajeErrorForm = ref('');
+  const cargandoForm = ref(false);
+  let cerrar = null;
+
+  function guardar() {
+    mensajeErrorForm.value = '';
+    const id = String(form.value.id || '').trim();
+    const nombre = String(form.value.nombre || '').trim();
+    if (!nombre) {
+      mensajeErrorForm.value = 'El nombre es requerido';
+      return;
+    }
+    if (!id) {
+      mensajeErrorForm.value = 'El id es requerido';
+      return;
+    }
+
+    cargandoForm.value = true;
+    const payload = {
+      id,
+      originalId: editandoId.value,
+      nombre,
+      descripcion: String(form.value.descripcion || '').trim(),
+      promt_sistema: String(form.value.promt_sistema || '').trim(),
+    };
+    const accion = editandoId.value ? 'agentes:update' : 'agentes:create';
+
+    socket.emit(accion, payload, (resp) => {
+      cargandoForm.value = false;
+      if (resp.ok) {
+        if (typeof cerrar === 'function') cerrar();
+      } else {
+        mensajeErrorForm.value = resp.error || 'Error guardando agente';
+      }
+    });
+  }
+
+  function abrirModal() {
+    cerrar = mostrarModal({
+      header: FormularioAgenteHeader,
+      body: FormularioAgenteBody,
+      footer: FormularioAgenteFooter,
+      headerProps: { editandoId },
+      bodyProps: { form, mensajeError: mensajeErrorForm },
+      footerProps: { cargando: cargandoForm, onGuardar: guardar, onCerrar: () => cerrar && cerrar() },
+      fullscreen: false,
+    });
+  }
+
+  abrirModal();
+}
+
+function editarAgente(id) {
+  const agente = agentesMap.value[id];
+  if (!agente) return;
+  abrirFormularioAgente(agente);
 }
 
 function removeNode(id) {
@@ -141,6 +239,10 @@ function nodeStyle(node) {
   };
 }
 
+function getNodeLabel(node) {
+  return agentesMap.value[node.id]?.nombre || 'Agente';
+}
+
 function connectorPosition(node, type) {
   const x = node.x + (type === 'output' ? NODE_WIDTH : 0);
   const y = node.y + HANDLE_Y;
@@ -150,7 +252,7 @@ function connectorPosition(node, type) {
 function startConnection(node) {
   connectionStart.value = {
     fromId: node.id,
-    fromLabel: node.label,
+    fromLabel: getNodeLabel(node),
     start: connectorPosition(node, 'output'),
   };
 }
@@ -238,11 +340,15 @@ function endPointerActions() {
 
 onMounted(() => {
   updateCanvasRect();
+  cargarAgentes();
   window.addEventListener('resize', updateCanvasRect);
+  socket.on('agentes:changed', cargarAgentes);
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', updateCanvasRect);
+  socket.off('agentes:changed', cargarAgentes);
+  socket.disconnect();
 });
 </script>
 
@@ -278,6 +384,15 @@ onUnmounted(() => {
   font-size: 0.95rem;
 }
 
+.toolbar-error {
+  color: #842029;
+  background: #f8d7da;
+  border: 1px solid #f5c2c7;
+  padding: 0.65rem 0.9rem;
+  border-radius: 0.65rem;
+  margin-bottom: 1rem;
+}
+
 .canvas-area {
   position: relative;
   min-height: 520px;
@@ -309,6 +424,21 @@ onUnmounted(() => {
   opacity: 0.65;
 }
 
+.canvas-empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #5a677d;
+  font-size: 1rem;
+  text-align: center;
+  padding: 1rem 1.5rem;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px dashed #c7d3e3;
+  border-radius: 1rem;
+  max-width: 320px;
+}
+
 .node-card {
   position: absolute;
   width: 220px;
@@ -333,6 +463,20 @@ onUnmounted(() => {
   border-bottom: 1px solid #eef4ff;
   font-weight: 600;
   color: #1d3557;
+}
+
+.btn-edit {
+  border: 1px solid #2c7be5;
+  background: #2c7be5;
+  color: white;
+  padding: 0.2rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.btn-edit:hover {
+  background: #1a5dc6;
 }
 
 .btn-close {

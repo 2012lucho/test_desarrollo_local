@@ -9,6 +9,7 @@ dotenv.config({ path: '.env.dev' });
 const app = require('./app');
 const proyectosWebsocket = require('./websocket/proyectos');
 const ollamaWebsocket = require('./websocket/ollama');
+const agentesWebsocket = require('./websocket/agentes');
 const tecnologiasWebsocket = require('./websocket/tecnologias');
 const port = process.env.PUERTO || 3000;
 
@@ -42,6 +43,7 @@ io.on('connection', (socket) => {
 
   proyectosWebsocket(socket, io);
   ollamaWebsocket(socket);
+  agentesWebsocket(socket, io);
   tecnologiasWebsocket(socket, io);
 
   socket.on('disconnect', (reason) => {
