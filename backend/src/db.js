@@ -15,6 +15,6 @@ const runMigrations = async () => {
   }
 };
 
-runMigrations();
+db.ready = runMigrations();
 
 module.exports = db;

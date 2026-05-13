@@ -1,14 +1,17 @@
 const path = require('path');
-const fs = require('fs');
+const db = require('../db');
 const OLLAMA_BASE = process.env.OLLAMA_URL || 'http://localhost:11434';
 const Agente = require(path.resolve(__dirname, '../../../agentes/agentesMin.js'));
-const PROMPT_SISTEMA_PATH = path.resolve(__dirname, '../../../agentes/promts/testModelo.md');
-let promptSistemaDefault = '';
 
-try {
-  promptSistemaDefault = fs.readFileSync(PROMPT_SISTEMA_PATH, 'utf8').trim();
-} catch (err) {
-  console.error('No se pudo cargar prompt de sistema:', err.message);
+async function getPromptSistemaDefault() {
+  try {
+    await db.ready;
+    const agente = await db('agentes').where({ id: 'test_modelo' }).first();
+    return agente?.promt_sistema?.trim() || '';
+  } catch (err) {
+    console.error('No se pudo cargar prompt de sistema desde DB:', err.message);
+    return '';
+  }
 }
 
 /**
@@ -128,6 +131,7 @@ module.exports = (socket) => {
     }
 
     try {
+      const promptSistemaDefault = await getPromptSistemaDefault();
       const agente = new Agente(model)
         .setPromptSistema(promptSistemaDefault)
         .setEntrada(prompt);

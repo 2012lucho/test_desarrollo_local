@@ -9,7 +9,8 @@
     "dev": "nodemon src/index.js",
     "migrate": "npx knex migrate:latest --knexfile src/knexfile.js",
     "migrate:rollback": "npx knex migrate:rollback --knexfile src/knexfile.js",
-    "migrate:status": "npx knex migrate:status --knexfile src/knexfile.js"
+    "migrate:status": "npx knex migrate:status --knexfile src/knexfile.js",
+    "seed": "npx knex seed:run --knexfile src/knexfile.js"
   },
   "dependencies": {
     "dotenv": "^16.0.3",
