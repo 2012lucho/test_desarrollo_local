@@ -62,6 +62,26 @@
             </div>
 
             <div class="mb-3">
+              <label class="form-label fw-semibold">Agente</label>
+              <select
+                class="form-select"
+                v-model="selectedAgent"
+                :disabled="loading || !serverRunning || agents.length === 0"
+              >
+                <option value="" disabled>
+                  {{ agents.length ? 'Selecciona un agente' : 'No hay agentes disponibles' }}
+                </option>
+                <option
+                  v-for="agent in agents"
+                  :key="agent.id"
+                  :value="agent.id"
+                >
+                  {{ agent.nombre || agent.id }}
+                </option>
+              </select>
+            </div>
+
+            <div class="mb-3">
               <label class="form-label fw-semibold">Proyecto</label>
               <select
                 class="form-select"
@@ -99,6 +119,13 @@
                 @click="send"
               >
                 {{ loading ? 'Enviando...' : 'Enviar' }}
+              </button>
+              <button
+                class="btn btn-outline-danger"
+                v-if="loading"
+                @click="stopExecution"
+              >
+                Detener
               </button>
               <button
                 class="btn btn-outline-secondary"
@@ -140,6 +167,8 @@ const socket = io(import.meta.env.VITE_API_URL);
 
 const models = ref([]);
 const selectedModel = ref('');
+const agents = ref([]);
+const selectedAgent = ref('');
 const projects = ref([]);
 const selectedProject = ref('');
 const prompt = ref('');
@@ -164,6 +193,21 @@ function loadModels() {
     } else {
       models.value = [];
       errorMessage.value = resp.error || 'No se pudieron obtener los modelos disponibles.';
+    }
+  });
+}
+
+function loadAgents() {
+  socket.emit('agentes:list', null, (resp) => {
+    if (resp.ok) {
+      agents.value = resp.data ?? [];
+      if (agents.value.length && !selectedAgent.value) {
+        selectedAgent.value = agents.value[0].id;
+      }
+      errorMessage.value = '';
+    } else {
+      agents.value = [];
+      errorMessage.value = resp.error || 'No se pudieron obtener los agentes disponibles.';
     }
   });
 }
@@ -231,11 +275,16 @@ function send() {
 
   socket.emit(
     'ollama:generate',
-    { model: selectedModel.value, prompt: userText, requestId: currentRequestId },
+    {
+      model: selectedModel.value,
+      agentId: selectedAgent.value,
+      prompt: userText,
+      requestId: currentRequestId,
+    },
     (resp) => {
       assistantTyping.value = false;
       loading.value = false;
-      if (!resp.ok) {
+      if (!resp.ok && !resp.aborted) {
         errorMessage.value = resp.error || 'Error generando respuesta';
       }
       currentRequestId = null;
@@ -244,6 +293,15 @@ function send() {
   );
 
   prompt.value = '';
+}
+
+function stopExecution() {
+  if (!currentRequestId) return;
+  socket.emit('ollama:stop', { requestId: currentRequestId }, () => {});
+  loading.value = false;
+  assistantTyping.value = false;
+  currentRequestId = null;
+  currentAssistantMessage = null;
 }
 
 function clearConversation() {
@@ -255,6 +313,7 @@ function clearConversation() {
 onMounted(() => {
   loadStatus();
   loadProjects();
+  loadAgents();
 });
 
 onUnmounted(() => {

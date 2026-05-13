@@ -23,12 +23,14 @@ async function getPromptSistemaDefault() {
  * - ollama:pull      { model }
  * - ollama:delete    { model }
  * - ollama:generate  { model, prompt, requestId }
+ * - ollama:stop      { requestId? }
  *
  * Respuestas por callback de ack o emisión al socket:
  * - ollama:pull:progress   { model, status, completed?, total?, ... }
  * - ollama:generate:chunk  { requestId, token, done, fullResponse? }
  */
 module.exports = (socket) => {
+  const activeRequests = new Map();
   const safeCallback = (callback, payload) => {
     if (typeof callback === 'function') callback(payload);
   };
@@ -123,11 +125,34 @@ module.exports = (socket) => {
     }
   });
 
+  // ── Detiene una ejecución en curso ───────────────────────────────────────
+  socket.on('ollama:stop', (payload, callback) => {
+    const { requestId } = payload || {};
+    if (requestId) {
+      const controller = activeRequests.get(requestId);
+      if (controller) {
+        controller.abort();
+        activeRequests.delete(requestId);
+      }
+    } else {
+      for (const controller of activeRequests.values()) {
+        controller.abort();
+      }
+      activeRequests.clear();
+    }
+    safeCallback(callback, { ok: true });
+  });
+
   // ── Genera texto con streaming token a token ──────────────────────────────
   socket.on('ollama:generate', async (payload, callback) => {
     const { model, prompt, requestId } = payload || {};
     if (!model || !prompt) {
       return safeCallback(callback, { ok: false, error: 'Se requieren model y prompt' });
+    }
+
+    const controller = new AbortController();
+    if (requestId) {
+      activeRequests.set(requestId, controller);
     }
 
     try {
@@ -152,12 +177,27 @@ module.exports = (socket) => {
             fullResponse: resultadoFinal.respuesta,
           });
         },
+        signal: controller.signal,
       });
 
       safeCallback(callback, { ok: true, data: { fullResponse: resultado.respuesta } });
     } catch (err) {
-      console.error('ollama:generate error', err);
-      safeCallback(callback, { ok: false, error: `Error generando respuesta: ${err.message}` });
+      if (err.name === 'AbortError') {
+        socket.emit('ollama:generate:chunk', {
+          requestId,
+          token: '',
+          done: true,
+          aborted: true,
+        });
+        safeCallback(callback, { ok: false, error: 'Ejecución detenida', aborted: true });
+      } else {
+        console.error('ollama:generate error', err);
+        safeCallback(callback, { ok: false, error: `Error generando respuesta: ${err.message}` });
+      }
+    } finally {
+      if (requestId) {
+        activeRequests.delete(requestId);
+      }
     }
   });
 };

@@ -23,18 +23,19 @@ class Agente {
   async ejecutar(partialCallback, finalCallback) {
     let onPartial = null;
     let onComplete = null;
+    let signal = null;
 
-    if (typeof partialCallback === 'function') {
-      onPartial = partialCallback;
-    }
-
-    if (typeof finalCallback === 'function') {
-      onComplete = finalCallback;
-    }
-
-    if (partialCallback && typeof partialCallback === 'object') {
-      onPartial = typeof partialCallback.onPartial === 'function' ? partialCallback.onPartial : onPartial;
-      onComplete = typeof partialCallback.onComplete === 'function' ? partialCallback.onComplete : onComplete;
+    if (typeof partialCallback === 'object' && partialCallback !== null && !Array.isArray(partialCallback)) {
+      onPartial = typeof partialCallback.onPartial === 'function' ? partialCallback.onPartial : null;
+      onComplete = typeof partialCallback.onComplete === 'function' ? partialCallback.onComplete : null;
+      signal = partialCallback.signal || null;
+    } else {
+      if (typeof partialCallback === 'function') {
+        onPartial = partialCallback;
+      }
+      if (typeof finalCallback === 'function') {
+        onComplete = finalCallback;
+      }
     }
 
     const prompt = this._buildPrompt();
@@ -42,6 +43,7 @@ class Agente {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: this.modelo, prompt, stream: true }),
+      signal,
     });
 
     if (!response.ok) {
