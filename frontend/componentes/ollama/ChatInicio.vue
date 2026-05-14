@@ -217,54 +217,10 @@ socket.on('ollama:generate:chunk', (data) => {
   }
 });
 
-async function createSession() {
-  return new Promise((resolve, reject) => {
-    socket.emit(
-      'sessionAgente:create',
-      {
-        id_agente: selectedAgent.value,
-        id_proyecto: selectedProject.value || null,
-        originado_por: 'HUMANO',
-      },
-      (resp) => {
-        if (resp.ok && resp.data?.id) {
-          resolve(resp.data.id);
-        } else {
-          reject(resp.error || 'No se pudo crear la sesión de agente');
-        }
-      }
-    );
-  });
-}
-
-function updateSessionFin() {
-  if (!currentSessionId.value) return;
-  socket.emit(
-    'sessionAgente:update',
-    { id: currentSessionId.value },
-    (resp) => {
-      if (!resp.ok) {
-        console.error('sessionAgente:update', resp.error);
-      }
-    }
-  );
-}
-
 async function send() {
   if (!prompt.value.trim() || !selectedAgent.value || !serverRunning.value) return;
 
   errorMessage.value = '';
-
-  if (!currentSessionId.value) {
-    try {
-      currentSessionId.value = await createSession();
-    } catch (err) {
-      errorMessage.value = String(err || 'Error iniciando sesión de chat');
-      return;
-    }
-  } else {
-    updateSessionFin();
-  }
 
   const userText = prompt.value.trim();
   messages.value.push({ role: 'user', text: userText });
@@ -283,14 +239,18 @@ async function send() {
       prompt: userText,
       requestId: currentRequestId,
       sessionId: currentSessionId.value,
+      id_proyecto: selectedProject.value || null,
+      originado_por: 'HUMANO',
     },
     (resp) => {
       assistantTyping.value = false;
       loading.value = false;
-      if (!resp.ok && !resp.aborted) {
+      if (resp.ok) {
+        if (resp.data?.sessionId) {
+          currentSessionId.value = resp.data.sessionId;
+        }
+      } else if (!resp.aborted) {
         errorMessage.value = resp.error || 'Error generando respuesta';
-      } else {
-        updateSessionFin();
       }
       currentRequestId = null;
       currentAssistantMessage = null;

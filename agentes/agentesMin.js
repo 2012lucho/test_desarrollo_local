@@ -1,3 +1,8 @@
+const path = require('path');
+const db = require(path.resolve(__dirname, '../backend/src/db.js'));
+
+const SESSION_ORIGINS = ['HUMANO', 'AUTOMATICO'];
+
 class Agente {
   constructor(modelo, ollamaUrl = 'http://localhost:11434') {
     if (typeof modelo !== 'string' || modelo.trim() === '') {
@@ -8,6 +13,12 @@ class Agente {
     this.entrada = '';
     this.promptSistema = '';
     this.ollamaUrl = ollamaUrl;
+    this.session = {
+      id: null,
+      id_agente: null,
+      id_proyecto: null,
+      originado_por: 'HUMANO',
+    };
   }
 
   setEntrada(texto) {
@@ -18,6 +29,68 @@ class Agente {
   setPromptSistema(prompt) {
     this.promptSistema = prompt == null ? '' : String(prompt);
     return this;
+  }
+
+  setSessionContext({ id_agente, id_proyecto = null, originado_por = 'HUMANO' } = {}) {
+    const agenteId = String(id_agente || '').trim();
+    if (!agenteId) {
+      throw new Error('id_agente es requerido para el contexto de sesión');
+    }
+
+    const origen = String(originado_por || 'HUMANO').trim().toUpperCase();
+    if (!SESSION_ORIGINS.includes(origen)) {
+      throw new Error(`originado_por inválido: ${origen}`);
+    }
+
+    this.session.id_agente = agenteId;
+    this.session.id_proyecto = id_proyecto == null || id_proyecto === '' ? null : id_proyecto;
+    this.session.originado_por = origen;
+    return this;
+  }
+
+  setSessionId(id) {
+    if (id != null) {
+      this.session.id = Number(id);
+    }
+    return this;
+  }
+
+  async createSession() {
+    if (!this.session.id_agente) {
+      throw new Error('id_agente no definido para crear sesión');
+    }
+
+    const [insertedId] = await db('session_agente').insert({
+      fecha_hora_ini: db.fn.now(),
+      fecha_hora_fin: db.fn.now(),
+      id_agente: this.session.id_agente,
+      id_proyecto: this.session.id_proyecto,
+      originado_por: this.session.originado_por,
+    });
+
+    this.session.id = insertedId;
+    return insertedId;
+  }
+
+  async touchSession() {
+    if (!this.session.id) {
+      throw new Error('session id no definido para actualizar');
+    }
+
+    const affected = await db('session_agente')
+      .where({ id: this.session.id })
+      .update({ fecha_hora_fin: db.fn.now() });
+
+    if (!affected) {
+      return this.createSession();
+    }
+
+    return this.session.id;
+  }
+
+  async ensureSession() {
+    if (this.session.id) return this.session.id;
+    return this.createSession();
   }
 
   async ejecutar(partialCallback, finalCallback) {

@@ -22,7 +22,7 @@ async function getPromptSistemaDefault() {
  * - ollama:list
  * - ollama:pull      { model }
  * - ollama:delete    { model }
- * - ollama:generate  { model?, prompt, requestId, agentId? }
+ * - ollama:generate  { model?, prompt, requestId, agentId?, sessionId?, id_proyecto?, originado_por? }
  * - ollama:stop      { requestId? }
  *
  * Respuestas por callback de ack o emisión al socket:
@@ -42,53 +42,6 @@ module.exports = (socket) => {
     } catch (error) {
       console.error('sessionAgente:list error', error);
       safeCallback(callback, { ok: false, error: 'Error listando sesiones de agente' });
-    }
-  });
-
-  socket.on('sessionAgente:create', async (payload, callback) => {
-    const id_agente = String(payload?.id_agente || '').trim();
-    const id_proyecto = payload?.id_proyecto == null || payload.id_proyecto === '' ? null : payload.id_proyecto;
-    const originado_por = String(payload?.originado_por || '').trim().toUpperCase();
-
-    if (!id_agente) {
-      return safeCallback(callback, { ok: false, error: 'id_agente es requerido' });
-    }
-    if (!['HUMANO', 'AUTOMATICO'].includes(originado_por)) {
-      return safeCallback(callback, { ok: false, error: 'originado_por inválido' });
-    }
-
-    try {
-      const [insertedId] = await db('session_agente').insert({
-        fecha_hora_ini: db.fn.now(),
-        fecha_hora_fin: db.fn.now(),
-        id_agente,
-        id_proyecto,
-        originado_por,
-      });
-      const session = await db('session_agente').where({ id: insertedId }).first();
-      safeCallback(callback, { ok: true, data: session });
-    } catch (error) {
-      console.error('sessionAgente:create error', error);
-      safeCallback(callback, { ok: false, error: 'Error creando sesión de agente' });
-    }
-  });
-
-  socket.on('sessionAgente:update', async (payload, callback) => {
-    const id = payload?.id;
-    if (!id) {
-      return safeCallback(callback, { ok: false, error: 'Id de sesión es requerido' });
-    }
-
-    try {
-      const affected = await db('session_agente').where({ id }).update({ fecha_hora_fin: db.fn.now() });
-      if (!affected) {
-        return safeCallback(callback, { ok: false, error: 'Sesión no encontrada', status: 404 });
-      }
-      const session = await db('session_agente').where({ id }).first();
-      safeCallback(callback, { ok: true, data: session });
-    } catch (error) {
-      console.error('sessionAgente:update error', error);
-      safeCallback(callback, { ok: false, error: 'Error actualizando sesión de agente' });
     }
   });
 
@@ -202,7 +155,7 @@ module.exports = (socket) => {
 
   // ── Genera texto con streaming token a token ──────────────────────────────
   socket.on('ollama:generate', async (payload, callback) => {
-    const { model, prompt, requestId, agentId, sessionId } = payload || {};
+    const { model, prompt, requestId, agentId, sessionId, id_proyecto, originado_por } = payload || {};
     if (!prompt) {
       return safeCallback(callback, { ok: false, error: 'Se requiere prompt' });
     }
@@ -238,7 +191,19 @@ module.exports = (socket) => {
     try {
       const agente = new Agente(selectedModel)
         .setPromptSistema(systemPrompt)
-        .setEntrada(prompt);
+        .setEntrada(prompt)
+        .setSessionContext({
+          id_agente: agentId,
+          id_proyecto: id_proyecto == null || id_proyecto === '' ? null : id_proyecto,
+          originado_por: originado_por || 'HUMANO',
+        });
+
+      if (sessionId) {
+        agente.setSessionId(sessionId);
+      }
+
+      await agente.ensureSession();
+      await agente.touchSession();
 
       const resultado = await agente.ejecutar({
         onPartial: (token) => {
@@ -259,14 +224,9 @@ module.exports = (socket) => {
         signal: controller.signal,
       });
 
-      if (sessionId) {
-        db('session_agente')
-          .where({ id: sessionId })
-          .update({ fecha_hora_fin: db.fn.now() })
-          .catch((err) => console.error('sessionAgente:update error', err));
-      }
+      await agente.touchSession();
 
-      safeCallback(callback, { ok: true, data: { fullResponse: resultado.respuesta } });
+      safeCallback(callback, { ok: true, data: { fullResponse: resultado.respuesta, sessionId: agente.session.id } });
     } catch (err) {
       if (err.name === 'AbortError') {
         socket.emit('ollama:generate:chunk', {
