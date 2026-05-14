@@ -26,6 +26,7 @@
             <th>Origen</th>
             <th>Inicio</th>
             <th>Último mensaje</th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
@@ -36,6 +37,15 @@
             <td>{{ session.originado_por }}</td>
             <td>{{ formatDate(session.fecha_hora_ini) }}</td>
             <td>{{ formatDate(session.fecha_hora_fin) }}</td>
+            <td>
+              <button
+                class="btn btn-sm btn-outline-danger"
+                @click="deleteSession(session.id)"
+                title="Eliminar sesión"
+              >
+                Eliminar
+              </button>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -64,6 +74,18 @@ function loadSessions() {
     } else {
       sessions.value = [];
       errorMessage.value = resp.error || 'Error cargando sesiones de agente';
+    }
+  });
+}
+
+function deleteSession(id) {
+  if (!confirm('¿Eliminar esta sesión de agente? Esta acción no se puede deshacer.')) return;
+  errorMessage.value = '';
+  socket.emit('sessionAgente:delete', { id }, (resp) => {
+    if (resp.ok) {
+      loadSessions();
+    } else {
+      errorMessage.value = resp.error || 'Error eliminando sesión de agente';
     }
   });
 }

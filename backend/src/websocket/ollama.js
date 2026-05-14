@@ -45,6 +45,24 @@ module.exports = (socket) => {
     }
   });
 
+  socket.on('sessionAgente:delete', async (payload, callback) => {
+    const id = payload?.id;
+    if (!id) {
+      return safeCallback(callback, { ok: false, error: 'Id de sesión es requerido' });
+    }
+
+    try {
+      const deleted = await db('session_agente').where({ id }).delete();
+      if (!deleted) {
+        return safeCallback(callback, { ok: false, error: 'Sesión no encontrada', status: 404 });
+      }
+      safeCallback(callback, { ok: true, data: { id } });
+    } catch (error) {
+      console.error('sessionAgente:delete error', error);
+      safeCallback(callback, { ok: false, error: 'Error eliminando sesión de agente' });
+    }
+  });
+
   // ── Verifica si el servidor Ollama está disponible ────────────────────────
   socket.on('ollama:status', async (_payload, callback) => {
     try {
