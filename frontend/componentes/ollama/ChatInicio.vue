@@ -156,6 +156,7 @@ const errorMessage = ref('');
 const serverRunning = ref(false);
 const currentAssistantText = ref('');
 const assistantTyping = ref(false);
+const currentSessionId = ref(null);
 
 let currentRequestId = null;
 let currentAssistantMessage = null;
@@ -216,10 +217,55 @@ socket.on('ollama:generate:chunk', (data) => {
   }
 });
 
-function send() {
+async function createSession() {
+  return new Promise((resolve, reject) => {
+    socket.emit(
+      'sessionAgente:create',
+      {
+        id_agente: selectedAgent.value,
+        id_proyecto: selectedProject.value || null,
+        originado_por: 'HUMANO',
+      },
+      (resp) => {
+        if (resp.ok && resp.data?.id) {
+          resolve(resp.data.id);
+        } else {
+          reject(resp.error || 'No se pudo crear la sesión de agente');
+        }
+      }
+    );
+  });
+}
+
+function updateSessionFin() {
+  if (!currentSessionId.value) return;
+  socket.emit(
+    'sessionAgente:update',
+    { id: currentSessionId.value },
+    (resp) => {
+      if (!resp.ok) {
+        console.error('sessionAgente:update', resp.error);
+      }
+    }
+  );
+}
+
+async function send() {
   if (!prompt.value.trim() || !selectedAgent.value || !serverRunning.value) return;
 
   errorMessage.value = '';
+
+  if (!currentSessionId.value) {
+    try {
+      currentSessionId.value = await createSession();
+    } catch (err) {
+      errorMessage.value = String(err || 'Error iniciando sesión de chat');
+      return;
+    }
+  } else {
+    updateSessionFin();
+  }
+
   const userText = prompt.value.trim();
   messages.value.push({ role: 'user', text: userText });
 
@@ -236,12 +282,15 @@ function send() {
       agentId: selectedAgent.value,
       prompt: userText,
       requestId: currentRequestId,
+      sessionId: currentSessionId.value,
     },
     (resp) => {
       assistantTyping.value = false;
       loading.value = false;
       if (!resp.ok && !resp.aborted) {
         errorMessage.value = resp.error || 'Error generando respuesta';
+      } else {
+        updateSessionFin();
       }
       currentRequestId = null;
       currentAssistantMessage = null;
@@ -264,6 +313,7 @@ function clearConversation() {
   messages.value = [];
   currentAssistantText.value = '';
   errorMessage.value = '';
+  currentSessionId.value = null;
 }
 
 onMounted(() => {

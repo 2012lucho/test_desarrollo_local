@@ -62,6 +62,15 @@
         <span class="menu-icon">⚙️</span>
         <span v-if="!collapsed">Agentes</span>
       </router-link>
+      <router-link
+        class="nav-link d-flex align-items-center gap-2"
+        to="/interacciones"
+        active-class="active"
+        title="Interacciones"
+      >
+        <span class="menu-icon">💬</span>
+        <span v-if="!collapsed">Interacciones</span>
+      </router-link>
     </nav>
 
     <div class="mt-4" v-if="!collapsed">

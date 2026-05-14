@@ -3,6 +3,7 @@ import AbmProyectos from '../componentes/proyectos/abmProyectos.vue';
 import AbmOllama from '../componentes/ollama/abmOllama.vue';
 import AbmTecnologias from '../componentes/tecnologias/abmTecnologias.vue';
 import AbmAgentes from '../componentes/agentes/AbmAgentes.vue';
+import AbmInteracciones from '../componentes/interacciones/abmInteracciones.vue';
 import ChatInicio from '../componentes/ollama/ChatInicio.vue';
 
 const routes = [
@@ -30,6 +31,11 @@ const routes = [
     path: '/agentes',
     name: 'Agentes',
     component: AbmAgentes,
+  },
+  {
+    path: '/interacciones',
+    name: 'Interacciones',
+    component: AbmInteracciones,
   },
 ];
 

@@ -35,6 +35,63 @@ module.exports = (socket) => {
     if (typeof callback === 'function') callback(payload);
   };
 
+  socket.on('sessionAgente:list', async (_payload, callback) => {
+    try {
+      const sessions = await db('session_agente').select('*').orderBy('fecha_hora_ini', 'desc');
+      safeCallback(callback, { ok: true, data: sessions });
+    } catch (error) {
+      console.error('sessionAgente:list error', error);
+      safeCallback(callback, { ok: false, error: 'Error listando sesiones de agente' });
+    }
+  });
+
+  socket.on('sessionAgente:create', async (payload, callback) => {
+    const id_agente = String(payload?.id_agente || '').trim();
+    const id_proyecto = payload?.id_proyecto == null || payload.id_proyecto === '' ? null : payload.id_proyecto;
+    const originado_por = String(payload?.originado_por || '').trim().toUpperCase();
+
+    if (!id_agente) {
+      return safeCallback(callback, { ok: false, error: 'id_agente es requerido' });
+    }
+    if (!['HUMANO', 'AUTOMATICO'].includes(originado_por)) {
+      return safeCallback(callback, { ok: false, error: 'originado_por inválido' });
+    }
+
+    try {
+      const [insertedId] = await db('session_agente').insert({
+        fecha_hora_ini: db.fn.now(),
+        fecha_hora_fin: db.fn.now(),
+        id_agente,
+        id_proyecto,
+        originado_por,
+      });
+      const session = await db('session_agente').where({ id: insertedId }).first();
+      safeCallback(callback, { ok: true, data: session });
+    } catch (error) {
+      console.error('sessionAgente:create error', error);
+      safeCallback(callback, { ok: false, error: 'Error creando sesión de agente' });
+    }
+  });
+
+  socket.on('sessionAgente:update', async (payload, callback) => {
+    const id = payload?.id;
+    if (!id) {
+      return safeCallback(callback, { ok: false, error: 'Id de sesión es requerido' });
+    }
+
+    try {
+      const affected = await db('session_agente').where({ id }).update({ fecha_hora_fin: db.fn.now() });
+      if (!affected) {
+        return safeCallback(callback, { ok: false, error: 'Sesión no encontrada', status: 404 });
+      }
+      const session = await db('session_agente').where({ id }).first();
+      safeCallback(callback, { ok: true, data: session });
+    } catch (error) {
+      console.error('sessionAgente:update error', error);
+      safeCallback(callback, { ok: false, error: 'Error actualizando sesión de agente' });
+    }
+  });
+
   // ── Verifica si el servidor Ollama está disponible ────────────────────────
   socket.on('ollama:status', async (_payload, callback) => {
     try {
@@ -145,7 +202,7 @@ module.exports = (socket) => {
 
   // ── Genera texto con streaming token a token ──────────────────────────────
   socket.on('ollama:generate', async (payload, callback) => {
-    const { model, prompt, requestId, agentId } = payload || {};
+    const { model, prompt, requestId, agentId, sessionId } = payload || {};
     if (!prompt) {
       return safeCallback(callback, { ok: false, error: 'Se requiere prompt' });
     }
@@ -201,6 +258,13 @@ module.exports = (socket) => {
         },
         signal: controller.signal,
       });
+
+      if (sessionId) {
+        db('session_agente')
+          .where({ id: sessionId })
+          .update({ fecha_hora_fin: db.fn.now() })
+          .catch((err) => console.error('sessionAgente:update error', err));
+      }
 
       safeCallback(callback, { ok: true, data: { fullResponse: resultado.respuesta } });
     } catch (err) {
