@@ -42,26 +42,6 @@
           <div class="card-header">Enviar a Ollama</div>
           <div class="card-body d-flex flex-column">
             <div class="mb-3">
-              <label class="form-label fw-semibold">Modelo</label>
-              <select
-                class="form-select"
-                v-model="selectedModel"
-                :disabled="loading || !serverRunning || models.length === 0"
-              >
-                <option value="" disabled>
-                  {{ models.length ? 'Selecciona un modelo' : 'No hay modelos instalados' }}
-                </option>
-                <option
-                  v-for="model in models"
-                  :key="model.name ?? model"
-                  :value="model.name ?? model"
-                >
-                  {{ model.name ?? model }}
-                </option>
-              </select>
-            </div>
-
-            <div class="mb-3">
               <label class="form-label fw-semibold">Agente</label>
               <select
                 class="form-select"
@@ -115,7 +95,7 @@
             <div class="d-flex gap-2 mb-3">
               <button
                 class="btn btn-primary"
-                :disabled="loading || !prompt.trim() || !selectedModel || !serverRunning"
+                :disabled="loading || !prompt.trim() || !selectedAgent || !serverRunning"
                 @click="send"
               >
                 {{ loading ? 'Enviando...' : 'Enviar' }}
@@ -165,8 +145,6 @@ import { io } from 'socket.io-client';
 
 const socket = io(import.meta.env.VITE_API_URL);
 
-const models = ref([]);
-const selectedModel = ref('');
 const agents = ref([]);
 const selectedAgent = ref('');
 const projects = ref([]);
@@ -181,21 +159,6 @@ const assistantTyping = ref(false);
 
 let currentRequestId = null;
 let currentAssistantMessage = null;
-
-function loadModels() {
-  socket.emit('ollama:list', null, (resp) => {
-    if (resp.ok) {
-      models.value = resp.data ?? [];
-      if (models.value.length && !selectedModel.value) {
-        selectedModel.value = models.value[0].name ?? models.value[0];
-      }
-      errorMessage.value = '';
-    } else {
-      models.value = [];
-      errorMessage.value = resp.error || 'No se pudieron obtener los modelos disponibles.';
-    }
-  });
-}
 
 function loadAgents() {
   socket.emit('agentes:list', null, (resp) => {
@@ -231,14 +194,8 @@ function loadStatus() {
   socket.emit('ollama:status', null, (resp) => {
     if (resp.ok) {
       serverRunning.value = !!resp.data?.running;
-      if (serverRunning.value) {
-        loadModels();
-      } else {
-        models.value = [];
-      }
     } else {
       serverRunning.value = false;
-      models.value = [];
       errorMessage.value = resp.error || 'No se pudo contactar con el servidor Ollama.';
     }
   });
@@ -260,7 +217,7 @@ socket.on('ollama:generate:chunk', (data) => {
 });
 
 function send() {
-  if (!prompt.value.trim() || !selectedModel.value || !serverRunning.value) return;
+  if (!prompt.value.trim() || !selectedAgent.value || !serverRunning.value) return;
 
   errorMessage.value = '';
   const userText = prompt.value.trim();
@@ -276,7 +233,6 @@ function send() {
   socket.emit(
     'ollama:generate',
     {
-      model: selectedModel.value,
       agentId: selectedAgent.value,
       prompt: userText,
       requestId: currentRequestId,

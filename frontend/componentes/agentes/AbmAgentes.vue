@@ -249,6 +249,8 @@ function abrirFormularioAgente(agente = null) {
       fullscreen: false,
     });
   }
+
+  abrirModal();
 }
 
 function editarAgente(id) {
