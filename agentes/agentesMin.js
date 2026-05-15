@@ -191,12 +191,18 @@ class Agente {
           continue;
         }
 
-        if (chunk.response != null) {
+        if (chunk.thinking != null && chunk.thinking !== '') {
+          if (onPartial) {
+            onPartial(chunk.thinking, resultado, 'thinking');
+          }
+        }
+
+        if (chunk.response != null && chunk.response !== '') {
           fullResponse += chunk.response;
           resultado.respuesta = fullResponse;
           resultado.parcial.push(chunk.response);
           if (onPartial) {
-            onPartial(chunk.response, resultado);
+            onPartial(chunk.response, resultado, 'response');
           }
         }
 
@@ -209,12 +215,17 @@ class Agente {
     if (buffer.trim()) {
       try {
         const chunk = JSON.parse(buffer);
-        if (chunk.response != null) {
+        if (chunk.thinking != null && chunk.thinking !== '') {
+          if (onPartial) {
+            onPartial(chunk.thinking, resultado, 'thinking');
+          }
+        }
+        if (chunk.response != null && chunk.response !== '') {
           fullResponse += chunk.response;
           resultado.respuesta = fullResponse;
           resultado.parcial.push(chunk.response);
           if (onPartial) {
-            onPartial(chunk.response, resultado);
+            onPartial(chunk.response, resultado, 'response');
           }
         }
         if (chunk.done) {

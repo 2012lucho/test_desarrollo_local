@@ -20,7 +20,7 @@
         {{ cargando ? 'Generando...' : 'Enviar' }}
       </button>
       <button
-        v-if="respuesta"
+        v-if="pensamiento || respuesta"
         class="btn btn-sm btn-outline-secondary"
         :disabled="cargando"
         @click="limpiar"
@@ -31,9 +31,14 @@
 
     <div v-if="mensajeError" class="alert alert-danger py-1 mb-2">{{ mensajeError }}</div>
 
-    <div v-if="respuesta || cargando" class="border rounded p-2 bg-light" style="min-height: 80px; max-height: 340px; overflow-y: auto; white-space: pre-wrap; font-family: monospace; font-size: 0.875rem;">
-      <div class="fw-semibold mb-1">Razonamiento interno</div>
-      <div>{{ respuesta }}<span v-if="cargando" class="cursor-blink">▌</span></div>
+    <div v-if="pensamiento || (cargando && !respuesta)" class="border rounded p-2 mb-3" style="background: #fff9e6; min-height: 60px; max-height: 220px; overflow-y: auto; white-space: pre-wrap; font-family: monospace; font-size: 0.85rem;">
+      <div class="fw-semibold mb-1" style="color: #856404;">Razonamiento interno</div>
+      <div>{{ pensamiento }}<span v-if="cargando && !respuesta" class="cursor-blink">▌</span></div>
+    </div>
+
+    <div v-if="respuesta || (cargando && pensamiento)" class="border rounded p-2 bg-light" style="min-height: 60px; max-height: 280px; overflow-y: auto; white-space: pre-wrap; font-family: monospace; font-size: 0.875rem;">
+      <div class="fw-semibold mb-1">Respuesta</div>
+      <div>{{ respuesta }}<span v-if="cargando && pensamiento" class="cursor-blink">▌</span></div>
     </div>
   </div>
 </template>
@@ -47,6 +52,7 @@ const props = defineProps(['modelName']);
 const socket = io(import.meta.env.VITE_API_URL);
 
 const prompt = ref('');
+const pensamiento = ref('');
 const respuesta = ref('');
 const cargando = ref(false);
 const mensajeError = ref('');
@@ -56,7 +62,11 @@ let currentRequestId = null;
 socket.on('ollama:generate:chunk', (data) => {
   if (data.requestId !== currentRequestId) return;
   if (!data.done) {
-    respuesta.value += data.token;
+    if (data.isThinking) {
+      pensamiento.value += data.token;
+    } else {
+      respuesta.value += data.token;
+    }
   } else {
     cargando.value = false;
   }
@@ -65,6 +75,7 @@ socket.on('ollama:generate:chunk', (data) => {
 function enviar() {
   if (!prompt.value.trim()) return;
   mensajeError.value = '';
+  pensamiento.value = '';
   respuesta.value = '';
   cargando.value = true;
   currentRequestId = `${Date.now()}-${Math.random()}`;
@@ -83,6 +94,7 @@ function enviar() {
 
 function limpiar() {
   prompt.value = '';
+  pensamiento.value = '';
   respuesta.value = '';
   mensajeError.value = '';
 }

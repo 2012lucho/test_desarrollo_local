@@ -250,11 +250,12 @@ module.exports = (socket) => {
       }
 
       const resultado = await agente.ejecutar({
-        onPartial: (token) => {
+        onPartial: (token, _resultado, type) => {
           socket.emit('ollama:generate:chunk', {
             requestId,
             token,
             done: false,
+            isThinking: type === 'thinking',
           });
         },
         onComplete: async (resultadoFinal) => {

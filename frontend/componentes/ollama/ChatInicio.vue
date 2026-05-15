@@ -24,17 +24,23 @@
                   'p-3 rounded',
                   message.role === 'user'
                     ? 'bg-primary text-white ms-auto'
-                    : message.pending
-                    ? 'bg-warning text-dark border border-warning'
                     : 'bg-light text-dark',
                   message.role === 'user' ? 'text-end' : 'text-start',
                 ]"
                 style="max-width: 100%;"
               >
-                <div class="small text-muted">
-                  {{ message.role === 'user' ? 'Usuario' : message.pending ? 'Agente — razonamiento parcial' : 'Agente' }}
+                <div class="small fw-semibold mb-1">
+                  {{ message.role === 'user' ? 'Usuario' : 'Agente' }}
                 </div>
-                <div class="mt-1" style="white-space: pre-wrap;">{{ message.text }}<span v-if="message.pending" class="cursor-blink">▌</span></div>
+                <div
+                  v-if="message.thinkingText"
+                  class="p-2 rounded mb-2 bg-warning text-dark"
+                  style="font-size: 0.85rem; white-space: pre-wrap; font-family: monospace;"
+                >
+                  <div class="small fw-semibold mb-1">Razonamiento interno</div>
+                  <div>{{ message.thinkingText }}<span v-if="message.pending && !message.text" class="cursor-blink">▌</span></div>
+                </div>
+                <div v-if="message.text || (!message.thinkingText && message.pending)" class="mt-1" style="white-space: pre-wrap;">{{ message.text }}<span v-if="message.pending && (message.text || !message.thinkingText)" class="cursor-blink">▌</span></div>
               </div>
             </div>
           </div>
@@ -190,8 +196,12 @@ socket.on('ollama:generate:chunk', (data) => {
   if (data.requestId !== currentRequestId) return;
   if (!data.done) {
     if (currentAssistantMessage) {
-      currentAssistantMessage.text += data.token;
-      currentAssistantText.value = currentAssistantMessage.text;
+      if (data.isThinking) {
+        currentAssistantMessage.thinkingText += data.token;
+      } else {
+        currentAssistantMessage.text += data.token;
+      }
+      currentAssistantText.value = currentAssistantMessage.thinkingText + currentAssistantMessage.text;
       nextTick(scrollToBottom);
     }
   } else {
@@ -218,7 +228,7 @@ async function send() {
   assistantTyping.value = true;
   loading.value = true;
   currentRequestId = `${Date.now()}-${Math.random()}`;
-  currentAssistantMessage = reactive({ role: 'assistant', text: '', pending: true });
+  currentAssistantMessage = reactive({ role: 'assistant', text: '', thinkingText: '', pending: true });
   messages.value.push(currentAssistantMessage);
   nextTick(scrollToBottom);
 
