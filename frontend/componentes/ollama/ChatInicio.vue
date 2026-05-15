@@ -62,26 +62,6 @@
             </div>
 
             <div class="mb-3">
-              <label class="form-label fw-semibold">Proyecto</label>
-              <select
-                class="form-select"
-                v-model="selectedProject"
-                :disabled="loading || projects.length === 0"
-              >
-                <option value="" disabled>
-                  {{ projects.length ? 'Selecciona un proyecto' : 'No hay proyectos disponibles' }}
-                </option>
-                <option
-                  v-for="project in projects"
-                  :key="project.id ?? project"
-                  :value="project.id ?? project"
-                >
-                  {{ project.nombre ?? project }}
-                </option>
-              </select>
-            </div>
-
-            <div class="mb-3">
               <label class="form-label fw-semibold">Mensaje</label>
               <textarea
                 class="form-control"
@@ -142,13 +122,13 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
 import { io } from 'socket.io-client';
+import { useProyectos, loadProjects } from '../../composables/useProyectos';
 
 const socket = io(import.meta.env.VITE_API_URL);
 
 const agents = ref([]);
 const selectedAgent = ref('');
-const projects = ref([]);
-const selectedProject = ref('');
+const { selectedProject } = useProyectos();
 const prompt = ref('');
 const messages = ref([]);
 const loading = ref(false);
@@ -172,21 +152,6 @@ function loadAgents() {
     } else {
       agents.value = [];
       errorMessage.value = resp.error || 'No se pudieron obtener los agentes disponibles.';
-    }
-  });
-}
-
-function loadProjects() {
-  socket.emit('proyectos:list', null, (resp) => {
-    if (resp.ok) {
-      projects.value = resp.data ?? [];
-      if (projects.value.length && !selectedProject.value) {
-        selectedProject.value = projects.value[0].id ?? projects.value[0];
-      }
-      errorMessage.value = '';
-    } else {
-      projects.value = [];
-      errorMessage.value = resp.error || 'No se pudieron obtener los proyectos disponibles.';
     }
   });
 }

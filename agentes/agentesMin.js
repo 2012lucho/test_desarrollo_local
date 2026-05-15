@@ -77,16 +77,14 @@ class Agente {
     if (!SESSION_ORIGINS.includes(source)) {
       throw new Error(`Origen inválido para mensaje: ${source}`);
     }
-    if (mensaje == null || String(mensaje).trim() === '') {
-      throw new Error('El mensaje no puede estar vacío');
-    }
+    const text = mensaje == null ? '' : String(mensaje);
 
     await this.ensureSession();
 
     const [insertedId] = await db('mensajes_sesion').insert({
       id_session: this.session.id,
       origen: source,
-      mensaje: String(mensaje),
+      mensaje: text,
       fecha_hora: db.fn.now(),
     });
 

@@ -1,5 +1,11 @@
 <template>
-  <div class="container-fluid py-3">
+  <div class="container-fluid pt-0 pb-3">
+    <div class="row mb-3">
+      <div class="col-12">
+        <BarraSuperior />
+      </div>
+    </div>
+
     <div class="row g-0">
       <div
         class="col-12 sidebar-column border-end min-vh-100"
@@ -18,6 +24,7 @@
 <script setup>
 import { ref } from 'vue';
 import BarraLateralIzquierda from './componentes/layout/BarraLateralIzquierda.vue';
+import BarraSuperior from './componentes/layout/BarraSuperior.vue';
 import ZonaOperaciones from './componentes/layout/ZonaOperaciones.vue';
 import GestorModals from './componentes/layout/GestorModals.vue';
 
