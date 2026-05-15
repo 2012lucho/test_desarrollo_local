@@ -45,6 +45,23 @@ module.exports = (socket) => {
     }
   });
 
+  socket.on('sessionAgente:messages', async (payload, callback) => {
+    const id_session = payload?.id_session;
+    if (!id_session) {
+      return safeCallback(callback, { ok: false, error: 'id_session es requerido' });
+    }
+
+    try {
+      const messages = await db('mensajes_sesion')
+        .where({ id_session })
+        .orderBy('fecha_hora', 'asc');
+      safeCallback(callback, { ok: true, data: messages });
+    } catch (error) {
+      console.error('sessionAgente:messages error', error);
+      safeCallback(callback, { ok: false, error: 'Error listando mensajes de sesión' });
+    }
+  });
+
   socket.on('sessionAgente:delete', async (payload, callback) => {
     const id = payload?.id;
     if (!id) {
@@ -52,6 +69,7 @@ module.exports = (socket) => {
     }
 
     try {
+      await db('mensajes_sesion').where({ id_session: id }).delete();
       const deleted = await db('session_agente').where({ id }).delete();
       if (!deleted) {
         return safeCallback(callback, { ok: false, error: 'Sesión no encontrada', status: 404 });
@@ -220,8 +238,7 @@ module.exports = (socket) => {
         agente.setSessionId(sessionId);
       }
 
-      await agente.ensureSession();
-      await agente.touchSession();
+      await agente.logMessage({ origen: 'HUMANO', mensaje: prompt });
 
       const resultado = await agente.ejecutar({
         onPartial: (token) => {
@@ -231,18 +248,17 @@ module.exports = (socket) => {
             done: false,
           });
         },
-        onComplete: (resultadoFinal) => {
+        onComplete: async (resultadoFinal) => {
           socket.emit('ollama:generate:chunk', {
             requestId,
             token: '',
             done: true,
             fullResponse: resultadoFinal.respuesta,
           });
+          await agente.logMessage({ origen: 'AUTOMATICO', mensaje: resultadoFinal.respuesta });
         },
         signal: controller.signal,
       });
-
-      await agente.touchSession();
 
       safeCallback(callback, { ok: true, data: { fullResponse: resultado.respuesta, sessionId: agente.session.id } });
     } catch (err) {

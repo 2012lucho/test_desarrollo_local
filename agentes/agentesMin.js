@@ -72,6 +72,31 @@ class Agente {
     return insertedId;
   }
 
+  async logMessage({ origen, mensaje } = {}) {
+    const source = String(origen || '').trim().toUpperCase();
+    if (!SESSION_ORIGINS.includes(source)) {
+      throw new Error(`Origen inválido para mensaje: ${source}`);
+    }
+    if (mensaje == null || String(mensaje).trim() === '') {
+      throw new Error('El mensaje no puede estar vacío');
+    }
+
+    await this.ensureSession();
+
+    const [insertedId] = await db('mensajes_sesion').insert({
+      id_session: this.session.id,
+      origen: source,
+      mensaje: String(mensaje),
+      fecha_hora: db.fn.now(),
+    });
+
+    await db('session_agente')
+      .where({ id: this.session.id })
+      .update({ fecha_hora_fin: db.fn.now() });
+
+    return insertedId;
+  }
+
   async touchSession() {
     if (!this.session.id) {
       throw new Error('session id no definido para actualizar');
@@ -89,7 +114,13 @@ class Agente {
   }
 
   async ensureSession() {
-    if (this.session.id) return this.session.id;
+    if (this.session.id) {
+      const existing = await db('session_agente').where({ id: this.session.id }).first();
+      if (existing) {
+        return this.session.id;
+      }
+      this.session.id = null;
+    }
     return this.createSession();
   }
 

@@ -39,6 +39,12 @@
             <td>{{ formatDate(session.fecha_hora_fin) }}</td>
             <td>
               <button
+                class="btn btn-sm btn-outline-primary me-2"
+                @click="viewSessionDetails(session)"
+              >
+                Ver detalles
+              </button>
+              <button
                 class="btn btn-sm btn-outline-danger"
                 @click="deleteSession(session.id)"
                 title="Eliminar sesión"
@@ -56,10 +62,13 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
 import { io } from 'socket.io-client';
+import { useModal } from '../../composables/useModal.js';
+import DetalleMensajesSesion from './DetalleMensajesSesion.vue';
 
 const socket = io(import.meta.env.VITE_API_URL);
 const sessions = ref([]);
 const errorMessage = ref('');
+const { mostrarModal } = useModal();
 
 function formatDate(value) {
   if (!value) return 'N/A';
@@ -87,6 +96,14 @@ function deleteSession(id) {
     } else {
       errorMessage.value = resp.error || 'Error eliminando sesión de agente';
     }
+  });
+}
+
+function viewSessionDetails(session) {
+  mostrarModal({
+    body: DetalleMensajesSesion,
+    bodyProps: { session, socket },
+    fullscreen: true,
   });
 }
 
