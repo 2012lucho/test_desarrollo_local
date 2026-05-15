@@ -1,7 +1,9 @@
 const path = require('path');
+const { Agent, fetch: undiciFetch } = require('undici');
 const db = require('../db');
 const OLLAMA_BASE = process.env.OLLAMA_URL || 'http://localhost:11434';
 const Agente = require(path.resolve(__dirname, '../../../agentes/agentesMin.js'));
+const OLLAMA_DISPATCHER = new Agent({ connectTimeout: 0, headersTimeout: 0, bodyTimeout: 0 });
 
 async function getPromptSistemaDefault() {
   try {
@@ -84,10 +86,11 @@ module.exports = (socket) => {
   // ── Verifica si el servidor Ollama está disponible ────────────────────────
   socket.on('ollama:status', async (_payload, callback) => {
     try {
-      const resp = await fetch(`${OLLAMA_BASE}/`);
+      const resp = await undiciFetch(`${OLLAMA_BASE}/`, { dispatcher: OLLAMA_DISPATCHER });
       const text = await resp.text();
       safeCallback(callback, { ok: true, data: { running: true, message: text.trim() } });
-    } catch {
+    } catch (err) {
+      console.error('ollama:status error', err);
       safeCallback(callback, { ok: false, error: 'Ollama no disponible', data: { running: false } });
     }
   });
@@ -95,7 +98,7 @@ module.exports = (socket) => {
   // ── Lista los modelos instalados ──────────────────────────────────────────
   socket.on('ollama:list', async (_payload, callback) => {
     try {
-      const resp = await fetch(`${OLLAMA_BASE}/api/tags`);
+      const resp = await undiciFetch(`${OLLAMA_BASE}/api/tags`, { dispatcher: OLLAMA_DISPATCHER });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
       safeCallback(callback, { ok: true, data: data.models || [] });
@@ -113,10 +116,11 @@ module.exports = (socket) => {
     }
 
     try {
-      const resp = await fetch(`${OLLAMA_BASE}/api/pull`, {
+      const resp = await undiciFetch(`${OLLAMA_BASE}/api/pull`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: model, stream: true }),
+        dispatcher: OLLAMA_DISPATCHER,
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
@@ -158,10 +162,11 @@ module.exports = (socket) => {
     }
 
     try {
-      const resp = await fetch(`${OLLAMA_BASE}/api/delete`, {
+      const resp = await undiciFetch(`${OLLAMA_BASE}/api/delete`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: model }),
+        dispatcher: OLLAMA_DISPATCHER,
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       safeCallback(callback, { ok: true, data: { model } });
@@ -227,18 +232,22 @@ module.exports = (socket) => {
     try {
       const agente = new Agente(selectedModel)
         .setPromptSistema(systemPrompt)
-        .setEntrada(prompt)
-        .setSessionContext({
+        .setEntrada(prompt);
+
+      const shouldLogSession = Boolean(agentId);
+      if (shouldLogSession) {
+        agente.setSessionContext({
           id_agente: agentId,
           id_proyecto: id_proyecto == null || id_proyecto === '' ? null : id_proyecto,
           originado_por: originado_por || 'HUMANO',
         });
 
-      if (sessionId) {
-        agente.setSessionId(sessionId);
-      }
+        if (sessionId) {
+          agente.setSessionId(sessionId);
+        }
 
-      await agente.logMessage({ origen: 'HUMANO', mensaje: prompt });
+        await agente.logMessage({ origen: 'HUMANO', mensaje: prompt });
+      }
 
       const resultado = await agente.ejecutar({
         onPartial: (token) => {
@@ -255,14 +264,26 @@ module.exports = (socket) => {
             done: true,
             fullResponse: resultadoFinal.respuesta,
           });
-          await agente.logMessage({ origen: 'AUTOMATICO', mensaje: resultadoFinal.respuesta });
+          if (shouldLogSession) {
+            await agente.logMessage({ origen: 'AUTOMATICO', mensaje: resultadoFinal.respuesta });
+          }
         },
         signal: controller.signal,
       });
 
-      safeCallback(callback, { ok: true, data: { fullResponse: resultado.respuesta, sessionId: agente.session.id } });
+      const responsePayload = { fullResponse: resultado.respuesta };
+      if (shouldLogSession) {
+        responsePayload.sessionId = agente.session.id;
+      }
+      safeCallback(callback, { ok: true, data: responsePayload });
     } catch (err) {
-      if (err.name === 'AbortError') {
+      const terminatedByAbort =
+        err?.name === 'AbortError' ||
+        (err?.name === 'TypeError' && err?.message === 'terminated') ||
+        err?.code === 'UND_ERR_SOCKET' ||
+        controller.signal?.aborted;
+
+      if (terminatedByAbort) {
         socket.emit('ollama:generate:chunk', {
           requestId,
           token: '',

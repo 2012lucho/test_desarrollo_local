@@ -10,7 +10,7 @@
       <div class="col-12 col-lg-6">
         <div class="card h-100">
           <div class="card-header">Conversación</div>
-          <div class="card-body chat-history p-3">
+          <div class="card-body chat-history p-3" ref="chatHistory">
             <div v-if="messages.length === 0" class="text-muted">
               No hay mensajes aún. Envía un mensaje en el panel derecho para comenzar.
             </div>
@@ -22,15 +22,19 @@
               <div
                 :class="[
                   'p-3 rounded',
-                  message.role === 'user' ? 'bg-primary text-white ms-auto' : 'bg-light text-dark',
+                  message.role === 'user'
+                    ? 'bg-primary text-white ms-auto'
+                    : message.pending
+                    ? 'bg-warning text-dark border border-warning'
+                    : 'bg-light text-dark',
                   message.role === 'user' ? 'text-end' : 'text-start',
                 ]"
                 style="max-width: 100%;"
               >
                 <div class="small text-muted">
-                  {{ message.role === 'user' ? 'Usuario' : 'Agente' }}
+                  {{ message.role === 'user' ? 'Usuario' : message.pending ? 'Agente — razonamiento parcial' : 'Agente' }}
                 </div>
-                <div class="mt-1" style="white-space: pre-wrap;">{{ message.text }}</div>
+                <div class="mt-1" style="white-space: pre-wrap;">{{ message.text }}<span v-if="message.pending" class="cursor-blink">▌</span></div>
               </div>
             </div>
           </div>
@@ -120,7 +124,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, reactive, nextTick, onMounted, onUnmounted } from 'vue';
 import { io } from 'socket.io-client';
 import { useProyectos, loadProjects } from '../../composables/useProyectos';
 
@@ -140,6 +144,14 @@ const currentSessionId = ref(null);
 
 let currentRequestId = null;
 let currentAssistantMessage = null;
+let statusInterval = null;
+
+const chatHistory = ref(null);
+
+function scrollToBottom() {
+  const el = chatHistory.value;
+  if (el) el.scrollTop = el.scrollHeight;
+}
 
 function loadAgents() {
   socket.emit('agentes:list', null, (resp) => {
@@ -160,9 +172,16 @@ function loadStatus() {
   socket.emit('ollama:status', null, (resp) => {
     if (resp.ok) {
       serverRunning.value = !!resp.data?.running;
+      if (serverRunning.value && statusInterval) {
+        clearInterval(statusInterval);
+        statusInterval = null;
+      }
     } else {
       serverRunning.value = false;
       errorMessage.value = resp.error || 'No se pudo contactar con el servidor Ollama.';
+      if (!statusInterval) {
+        statusInterval = setInterval(loadStatus, 5000);
+      }
     }
   });
 }
@@ -173,12 +192,17 @@ socket.on('ollama:generate:chunk', (data) => {
     if (currentAssistantMessage) {
       currentAssistantMessage.text += data.token;
       currentAssistantText.value = currentAssistantMessage.text;
+      nextTick(scrollToBottom);
     }
   } else {
     assistantTyping.value = false;
     loading.value = false;
     currentRequestId = null;
+    if (currentAssistantMessage) {
+      currentAssistantMessage.pending = false;
+    }
     currentAssistantMessage = null;
+    nextTick(scrollToBottom);
   }
 });
 
@@ -194,8 +218,9 @@ async function send() {
   assistantTyping.value = true;
   loading.value = true;
   currentRequestId = `${Date.now()}-${Math.random()}`;
-  currentAssistantMessage = { role: 'assistant', text: '' };
+  currentAssistantMessage = reactive({ role: 'assistant', text: '', pending: true });
   messages.value.push(currentAssistantMessage);
+  nextTick(scrollToBottom);
 
   socket.emit(
     'ollama:generate',
@@ -245,10 +270,20 @@ onMounted(() => {
   loadStatus();
   loadProjects();
   loadAgents();
+
+  socket.on('connect', () => {
+    loadStatus();
+    loadAgents();
+  });
 });
 
 onUnmounted(() => {
   socket.off('ollama:generate:chunk');
+  socket.off('connect');
+  if (statusInterval) {
+    clearInterval(statusInterval);
+    statusInterval = null;
+  }
   socket.disconnect();
 });
 </script>

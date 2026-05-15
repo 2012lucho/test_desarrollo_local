@@ -55,6 +55,15 @@
       </router-link>
       <router-link
         class="nav-link d-flex align-items-center gap-2"
+        to="/casos-de-prueba"
+        active-class="active"
+        title="Casos de Prueba"
+      >
+        <span class="menu-icon">🧪</span>
+        <span v-if="!collapsed">Casos de Prueba</span>
+      </router-link>
+      <router-link
+        class="nav-link d-flex align-items-center gap-2"
         to="/ollama"
         active-class="active"
         title="Ollama"

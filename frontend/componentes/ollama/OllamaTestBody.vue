@@ -32,7 +32,8 @@
     <div v-if="mensajeError" class="alert alert-danger py-1 mb-2">{{ mensajeError }}</div>
 
     <div v-if="respuesta || cargando" class="border rounded p-2 bg-light" style="min-height: 80px; max-height: 340px; overflow-y: auto; white-space: pre-wrap; font-family: monospace; font-size: 0.875rem;">
-      <span>{{ respuesta }}</span><span v-if="cargando" class="cursor-blink">▌</span>
+      <div class="fw-semibold mb-1">Razonamiento interno</div>
+      <div>{{ respuesta }}<span v-if="cargando" class="cursor-blink">▌</span></div>
     </div>
   </div>
 </template>

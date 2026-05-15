@@ -1,7 +1,15 @@
 const path = require('path');
+let undici;
+try {
+  undici = require('undici');
+} catch (err) {
+  undici = require(path.resolve(__dirname, '../backend/node_modules/undici'));
+}
+const { Agent, fetch: undiciFetch } = undici;
 const db = require(path.resolve(__dirname, '../backend/src/db.js'));
 
 const SESSION_ORIGINS = ['HUMANO', 'AUTOMATICO'];
+const OLLAMA_DISPATCHER = new Agent({ connectTimeout: 0, headersTimeout: 0, bodyTimeout: 0 });
 
 class Agente {
   constructor(modelo, ollamaUrl = 'http://localhost:11434') {
@@ -141,11 +149,12 @@ class Agente {
     }
 
     const prompt = this._buildPrompt();
-    const response = await fetch(`${this.ollamaUrl}/api/generate`, {
+    const response = await undiciFetch(`${this.ollamaUrl}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: this.modelo, prompt, stream: true }),
       signal,
+      dispatcher: OLLAMA_DISPATCHER,
     });
 
     if (!response.ok) {
