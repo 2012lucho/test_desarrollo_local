@@ -2,9 +2,10 @@
   <div class="basededatos-page">
     <div class="toolbar">
       <div class="toolbar-actions">
-        <button class="btn" @click="zoomOut">- Alejar</button>
-        <button class="btn" @click="zoomReset">100%</button>
-        <button class="btn" @click="zoomIn">+ Acercar</button>
+        <button type="button" class="btn" @click="zoomOut">- Alejar</button>
+        <button type="button" class="btn" @click="zoomReset">100%</button>
+        <button type="button" class="btn" @click="zoomIn">+ Acercar</button>
+        <button type="button" class="btn" @click="abrirNuevaTabla">+ Agregar tabla</button>
       </div>
       <div class="toolbar-status">
         <span v-if="currentProjectName">Proyecto: <strong>{{ currentProjectName }}</strong></span>
@@ -54,6 +55,7 @@
         >
           <div class="node-header">
             <span>{{ getNodeLabel(node) }}</span>
+            <button type="button" class="btn btn-sm btn-outline-secondary btn-edit-table" @click.stop.prevent="editarTabla(node.id)">Editar</button>
           </div>
           <div class="node-body">
             <ul class="field-list">
@@ -74,10 +76,15 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue';
-import { useProyectos, loadProjectDetails, updateTablePosition } from '../../composables/useProyectos';
+import { useModal } from '../../composables/useModal.js';
+import { useProyectos, loadProjectDetails, updateProjectTables, updateTablePosition } from '../../composables/useProyectos';
+import FormularioTablaHeader from '../proyectos/FormularioTablaHeader.vue';
+import FormularioTablaBody from '../proyectos/FormularioTablaBody.vue';
+import FormularioTablaFooter from '../proyectos/FormularioTablaFooter.vue';
 
 const canvasRef = ref(null);
 const { selectedProject, projectData, loadingProject } = useProyectos();
+const { mostrarModal } = useModal();
 const tables = computed(() => Array.isArray(projectData.value?.tablas) ? projectData.value.tablas : []);
 const currentProjectName = computed(() => projectData.value?.nombre ?? '');
 const nodes = ref([]);
@@ -89,6 +96,7 @@ const maxZoom = 2.5;
 const zoomStep = 0.1;
 const NODE_WIDTH = 220;
 const NODE_HEIGHT = 200;
+const mensajeErrorTabla = ref('');
 
 const canvasTransformStyle = computed(() => ({
   transform: `scale(${zoom.value})`,
@@ -173,6 +181,111 @@ function loadTables() {
   });
 }
 
+function generarIdTemporal() {
+  return -(Date.now() + Math.floor(Math.random() * 1000));
+}
+
+function abrirNuevaTabla() {
+  const nuevaTabla = ref({
+    id: generarIdTemporal(),
+    nombre: '',
+    descripcion: '',
+    campos: [],
+    pos_canvas_x: 60,
+    pos_canvas_y: 60,
+  });
+  abrirModalTabla(nuevaTabla, true);
+}
+
+function editarTabla(tablaId) {
+  const tablaOrigen = tables.value.find((item) => item.id === tablaId);
+  if (!tablaOrigen) return;
+  const tablaCopia = ref(JSON.parse(JSON.stringify(tablaOrigen)));
+  abrirModalTabla(tablaCopia, false);
+}
+
+function prepararTablasPayload(tablas) {
+  return tablas
+    .map((item) => {
+      const nombre = String(item?.nombre ?? '').trim();
+      if (!nombre) return null;
+      return {
+        id: item?.id,
+        nombre,
+        descripcion: item?.descripcion ?? '',
+        pos_canvas_x: item?.pos_canvas_x ?? null,
+        pos_canvas_y: item?.pos_canvas_y ?? null,
+        campos: Array.isArray(item?.campos)
+          ? item.campos
+              .map((campo) => ({
+                id: campo?.id,
+                nombre: String(campo?.nombre ?? '').trim(),
+                tipo: String(campo?.tipo || 'VARCHAR').trim() || 'VARCHAR',
+                descripcion: campo?.descripcion ? String(campo.descripcion).trim() : null,
+                orden: Number.isNaN(Number(campo?.orden)) ? 0 : Number(campo.orden),
+                nulo: Boolean(campo?.nulo),
+                clave_primaria: Boolean(campo?.clave_primaria),
+                autoincremental: Boolean(campo?.autoincremental),
+                longitud: campo?.longitud == null || campo?.longitud === '' || Number.isNaN(Number(campo?.longitud)) ? null : Number(campo.longitud),
+                config: campo?.config ?? '{}',
+                relaciones: Array.isArray(campo?.relaciones)
+                  ? campo.relaciones
+                      .filter((rel) => rel && rel.id_campo_2)
+                      .map((rel) => ({
+                        id_campo_2: rel.id_campo_2,
+                        tipo_relacion: String(rel.tipo_relacion || '1-1').trim() || '1-1',
+                      }))
+                  : [],
+              }))
+              .filter((campo) => campo.nombre)
+          : [],
+      };
+    })
+    .filter(Boolean);
+}
+
+async function abrirModalTabla(tablaRef, esNueva) {
+  mensajeErrorTabla.value = '';
+  let cerrar = null;
+
+  function guardarTabla() {
+    mensajeErrorTabla.value = '';
+    const tabla = tablaRef.value;
+    if (!tabla || !String(tabla.nombre || '').trim()) {
+      mensajeErrorTabla.value = 'El nombre de la tabla es requerido.';
+      return;
+    }
+
+    const tablasActuales = Array.isArray(projectData.value?.tablas) ? projectData.value.tablas : [];
+    const index = tablasActuales.findIndex((item) => item.id === tabla.id);
+    if (index === -1) {
+      tablasActuales.push(tabla);
+    } else {
+      tablasActuales[index] = tabla;
+    }
+
+    const tablasPayload = prepararTablasPayload(tablasActuales);
+    updateProjectTables(selectedProject.value, tablasPayload).then((resp) => {
+      if (resp.ok) {
+        loadTables();
+        if (typeof cerrar === 'function') cerrar();
+      } else {
+        mensajeErrorTabla.value = resp.error || 'Error guardando la tabla';
+      }
+    });
+  }
+
+  cerrar = mostrarModal({
+    header: FormularioTablaHeader,
+    body: FormularioTablaBody,
+    footer: FormularioTablaFooter,
+    headerProps: { tabla: tablaRef },
+    bodyProps: { tabla: tablaRef, tablas: tables.value, mensajeError: mensajeErrorTabla },
+    footerProps: { onGuardar: guardarTabla, onCerrar: () => cerrar && cerrar() },
+    fullscreen: false,
+  });
+}
+
 function getNodeLabel(node) {
   const tabla = tables.value.find((item) => item.id === node.id);
   return tabla?.nombre ?? 'Tabla';
@@ -218,6 +331,7 @@ function connectionPath(connection) {
 }
 
 function startNodeDrag(node, event) {
+  if (event.target.closest('button')) return;
   const pointerX = (event.clientX - canvasRect.left) / zoom.value;
   const pointerY = (event.clientY - canvasRect.top) / zoom.value;
   const offsetX = pointerX - node.x;
@@ -407,10 +521,26 @@ onUnmounted(() => {
 }
 
 .node-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 0.85rem 1rem;
   border-bottom: 1px solid #eef4ff;
   font-weight: 600;
   color: #1d3557;
+}
+
+.btn-edit-table {
+  border-color: #ffffff;
+  color: #ffffff;
+  background-color: #6c757d;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+}
+
+.btn-edit-table:hover {
+  background: #5a6268;
+  border-color: #ffffff;
 }
 
 .node-body {

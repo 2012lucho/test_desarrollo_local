@@ -48,6 +48,14 @@ export function loadProjectDetails(projectId) {
   });
 }
 
+export function updateProjectTables(projectId, tablas) {
+  return new Promise((resolve) => {
+    socket.emit('proyectos:update', { id: Number(projectId), tablas }, (resp) => {
+      resolve(resp);
+    });
+  });
+}
+
 export function updateTablePosition({ id, pos_canvas_x, pos_canvas_y }) {
   return new Promise((resolve) => {
     socket.emit('tablas:update-position', { id, pos_canvas_x, pos_canvas_y }, (resp) => {
@@ -65,6 +73,7 @@ export function useProyectos() {
     loadingProject,
     loadProjects,
     loadProjectDetails,
+    updateProjectTables,
     updateTablePosition,
   };
 }
