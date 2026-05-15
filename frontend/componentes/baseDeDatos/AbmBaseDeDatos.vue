@@ -26,7 +26,18 @@
               <stop offset="0%" stop-color="rgba(44, 123, 229, 0.06)" />
               <stop offset="100%" stop-color="rgba(44, 123, 229, 0.02)" />
             </linearGradient>
+            <marker id="relationArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#2c7be5" />
+            </marker>
           </defs>
+
+          <path
+            v-for="connection in tableConnections"
+            :key="`${connection.from}-${connection.to}`"
+            :d="connectionPath(connection)"
+            class="relation-line"
+            marker-end="url(#relationArrow)"
+          />
         </svg>
         <div class="canvas-grid" />
 
@@ -76,6 +87,8 @@ const zoom = ref(1);
 const minZoom = 0.5;
 const maxZoom = 2.5;
 const zoomStep = 0.1;
+const NODE_WIDTH = 220;
+const NODE_HEIGHT = 200;
 
 const canvasTransformStyle = computed(() => ({
   transform: `scale(${zoom.value})`,
@@ -84,6 +97,32 @@ const canvasTransformStyle = computed(() => ({
 
 const canvasWidth = computed(() => Math.max(canvasRect.width, 900));
 const canvasHeight = computed(() => Math.max(canvasRect.height, 520));
+
+const tableConnections = computed(() => {
+  const seen = new Set();
+  const connections = [];
+
+  tables.value.forEach((tabla) => {
+    if (!Array.isArray(tabla.campos)) return;
+
+    tabla.campos.forEach((campo) => {
+      if (!Array.isArray(campo.relaciones)) return;
+      campo.relaciones.forEach((rel) => {
+        const destinoTablaId = rel.destino?.id_tabla ?? rel.origen?.id_tabla;
+        const origenTablaId = tabla.id;
+        if (!destinoTablaId || destinoTablaId === origenTablaId) return;
+
+        const key = [Math.min(origenTablaId, destinoTablaId), Math.max(origenTablaId, destinoTablaId)].join(':');
+        if (seen.has(key)) return;
+
+        seen.add(key);
+        connections.push({ from: origenTablaId, to: destinoTablaId });
+      });
+    });
+  });
+
+  return connections;
+});
 
 function updateCanvasRect() {
   const el = canvasRef.value;
@@ -158,6 +197,24 @@ function nodeStyle(node) {
   return {
     transform: `translate(${node.x}px, ${node.y}px)`,
   };
+}
+
+function connectionPath(connection) {
+  const fromNode = nodes.value.find((node) => node.id === connection.from);
+  const toNode = nodes.value.find((node) => node.id === connection.to);
+  if (!fromNode || !toNode) return '';
+
+  const start = {
+    x: fromNode.x + NODE_WIDTH,
+    y: fromNode.y + NODE_HEIGHT / 2,
+  };
+  const end = {
+    x: toNode.x,
+    y: toNode.y + NODE_HEIGHT / 2,
+  };
+
+  const midX = start.x + (end.x - start.x) / 2;
+  return `M ${start.x} ${start.y} C ${midX} ${start.y} ${midX} ${end.y} ${end.x} ${end.y}`;
 }
 
 function startNodeDrag(node, event) {
@@ -386,5 +443,12 @@ onUnmounted(() => {
 
 .field-item.text-muted {
   color: #6c757d;
+}
+
+.relation-line {
+  fill: none;
+  stroke: #2c7be5;
+  stroke-width: 2;
+  opacity: 0.75;
 }
 </style>
