@@ -4,7 +4,9 @@ import { io } from 'socket.io-client';
 const socket = io(import.meta.env.VITE_API_URL);
 const projects = ref([]);
 const selectedProject = ref('');
+const projectData = ref(null);
 const loadingProjects = ref(false);
+const loadingProject = ref(false);
 
 export function loadProjects() {
   loadingProjects.value = true;
@@ -24,11 +26,36 @@ export function loadProjects() {
   });
 }
 
+export function loadProjectDetails(projectId) {
+  loadingProject.value = true;
+  projectData.value = null;
+  return new Promise((resolve) => {
+    if (!projectId) {
+      loadingProject.value = false;
+      resolve({ ok: false, error: 'Se requiere proyecto seleccionado' });
+      return;
+    }
+
+    socket.emit('proyectos:get', { id: Number(projectId) }, (resp) => {
+      if (resp.ok) {
+        projectData.value = resp.data ?? null;
+      } else {
+        projectData.value = null;
+      }
+      loadingProject.value = false;
+      resolve(resp);
+    });
+  });
+}
+
 export function useProyectos() {
   return {
     projects,
     selectedProject,
+    projectData,
     loadingProjects,
+    loadingProject,
     loadProjects,
+    loadProjectDetails,
   };
 }

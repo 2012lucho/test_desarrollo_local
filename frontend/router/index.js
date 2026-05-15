@@ -2,6 +2,7 @@ import { createRouter, createWebHashHistory } from 'vue-router';
 import AbmProyectos from '../componentes/proyectos/abmProyectos.vue';
 import AbmOllama from '../componentes/ollama/abmOllama.vue';
 import AbmTecnologias from '../componentes/tecnologias/abmTecnologias.vue';
+import AbmBaseDeDatos from '../componentes/baseDeDatos/AbmBaseDeDatos.vue';
 import AbmAgentes from '../componentes/agentes/AbmAgentes.vue';
 import AbmInteracciones from '../componentes/interacciones/abmInteracciones.vue';
 import ChatInicio from '../componentes/ollama/ChatInicio.vue';
@@ -21,6 +22,11 @@ const routes = [
     path: '/tecnologias',
     name: 'Tecnologias',
     component: AbmTecnologias,
+  },
+  {
+    path: '/basededatos',
+    name: 'Base de Datos',
+    component: AbmBaseDeDatos,
   },
   {
     path: '/ollama',

@@ -46,6 +46,15 @@
       </router-link>
       <router-link
         class="nav-link d-flex align-items-center gap-2"
+        to="/basededatos"
+        active-class="active"
+        title="Base de Datos"
+      >
+        <span class="menu-icon">🗄️</span>
+        <span v-if="!collapsed">Base de Datos</span>
+      </router-link>
+      <router-link
+        class="nav-link d-flex align-items-center gap-2"
         to="/ollama"
         active-class="active"
         title="Ollama"
