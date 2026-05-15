@@ -51,6 +51,8 @@
 - id integer pk autoincremental
 - nombre varchar (100) notnull
 - proyecto_id integer fk referencias proyectos(id) notnull
+- pos_canvas_x integer null
+- pos_canvas_y integer null
 
 ## campos_tabla
 - id integer pk autoincremental

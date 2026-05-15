@@ -344,9 +344,13 @@ module.exports = (socket, io) => {
       const nombre = String(item?.nombre ?? '').trim();
       if (!nombre) continue;
       const originalKey = normalizeKey(item?.id ?? item?.tempId);
+      const pos_canvas_x = item?.pos_canvas_x !== undefined ? Number(item.pos_canvas_x) : null;
+      const pos_canvas_y = item?.pos_canvas_y !== undefined ? Number(item.pos_canvas_y) : null;
       const [tablaId] = await db('tablas_db_proyectos').insert({
         proyecto_id: proyectoId,
         nombre,
+        pos_canvas_x,
+        pos_canvas_y,
       });
 
       if (Array.isArray(item.campos) && item.campos.length) {
@@ -468,7 +472,7 @@ module.exports = (socket, io) => {
     if (payload.repositorio !== undefined) data.repositorio = payload.repositorio;
     if (payload.directorio_base !== undefined) data.directorio_base = payload.directorio_base;
 
-    if (Object.keys(data).length === 0 && !Array.isArray(payload.subproyectos) && !Array.isArray(payload.componentes)) {
+    if (Object.keys(data).length === 0 && !Array.isArray(payload.subproyectos) && !Array.isArray(payload.componentes) && !Array.isArray(payload.tablas)) {
       return safeCallback(callback, { ok: false, error: 'Se necesita al menos un campo para actualizar' });
     }
 
@@ -514,6 +518,31 @@ module.exports = (socket, io) => {
     } catch (error) {
       console.error('proyectos:update error', error);
       safeCallback(callback, { ok: false, error: error.message || 'Error actualizando proyecto' });
+    }
+  });
+
+  socket.on('tablas:update-position', async (payload, callback) => {
+    const id = Number(payload?.id);
+    if (!id || id <= 0) {
+      return safeCallback(callback, { ok: false, error: 'Se requiere id válido para actualizar posición' });
+    }
+
+    const pos_canvas_x = payload.pos_canvas_x !== undefined ? Number(payload.pos_canvas_x) : null;
+    const pos_canvas_y = payload.pos_canvas_y !== undefined ? Number(payload.pos_canvas_y) : null;
+    const updateData = {
+      pos_canvas_x,
+      pos_canvas_y,
+    };
+
+    try {
+      const affected = await db('tablas_db_proyectos').where({ id }).update(updateData);
+      if (!affected) {
+        return safeCallback(callback, { ok: false, error: 'Tabla no encontrada', status: 404 });
+      }
+      safeCallback(callback, { ok: true, data: { id, pos_canvas_x, pos_canvas_y } });
+    } catch (error) {
+      console.error('tablas:update-position error', error);
+      safeCallback(callback, { ok: false, error: 'Error actualizando posición de la tabla' });
     }
   });
 

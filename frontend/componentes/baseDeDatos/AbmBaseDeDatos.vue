@@ -45,8 +45,15 @@
             <span>{{ getNodeLabel(node) }}</span>
           </div>
           <div class="node-body">
-            <div class="node-info">Campos: <strong>{{ getTableFieldCount(node) }}</strong></div>
-            <div class="node-description">{{ getNodeDescription(node) }}</div>
+            <ul class="field-list">
+              <li v-for="campo in getNodeFields(node)" :key="campo.id" class="field-item">
+                {{ campo.nombre || 'Campo sin nombre' }}
+              </li>
+              <li v-if="!getNodeFields(node).length" class="field-item text-muted">
+                Sin campos definidos.
+              </li>
+            </ul>
+            <div v-if="getNodeDescription(node)" class="node-description">{{ getNodeDescription(node) }}</div>
           </div>
         </div>
       </div>
@@ -56,7 +63,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue';
-import { useProyectos, loadProjectDetails } from '../../composables/useProyectos';
+import { useProyectos, loadProjectDetails, updateTablePosition } from '../../composables/useProyectos';
 
 const canvasRef = ref(null);
 const { selectedProject, projectData, loadingProject } = useProyectos();
@@ -91,13 +98,23 @@ function updateCanvasRect() {
 function syncNodesWithTables() {
   const existing = Object.fromEntries(nodes.value.map((node) => [node.id, node]));
   nodes.value = tables.value.map((tabla, index) => {
+    const hasStoredPos = tabla.pos_canvas_x !== null && tabla.pos_canvas_x !== undefined && tabla.pos_canvas_y !== null && tabla.pos_canvas_y !== undefined;
+    const storedX = Number(tabla.pos_canvas_x);
+    const storedY = Number(tabla.pos_canvas_y);
+
     if (existing[tabla.id]) {
-      return existing[tabla.id];
+      const node = existing[tabla.id];
+      if (hasStoredPos) {
+        node.x = storedX;
+        node.y = storedY;
+      }
+      return node;
     }
+
     return {
       id: tabla.id,
-      x: 60 + (index % 3) * 260,
-      y: 60 + Math.floor(index / 3) * 180,
+      x: hasStoredPos ? storedX : 60 + (index % 3) * 260,
+      y: hasStoredPos ? storedY : 60 + Math.floor(index / 3) * 180,
     };
   });
 }
@@ -129,7 +146,12 @@ function getTableFieldCount(node) {
 
 function getNodeDescription(node) {
   const tabla = tables.value.find((item) => item.id === node.id);
-  return tabla?.descripcion ? tabla.descripcion : `ID: ${tabla?.id ?? ''}`;
+  return tabla?.descripcion ? tabla.descripcion : '';
+}
+
+function getNodeFields(node) {
+  const tabla = tables.value.find((item) => item.id === node.id);
+  return Array.isArray(tabla?.campos) ? tabla.campos : [];
 }
 
 function nodeStyle(node) {
@@ -157,8 +179,27 @@ function onCanvasPointerMove(event) {
   node.y = Math.max(0, Math.min(canvasRect.height / zoom.value - 120, pointerY - offsetY));
 }
 
-function endPointerActions() {
+async function endPointerActions() {
+  if (draggingNode.value) {
+    const node = draggingNode.value.node;
+    await persistNodePosition(node);
+  }
   draggingNode.value = null;
+}
+
+async function persistNodePosition(node) {
+  const tabla = tables.value.find((item) => item.id === node.id);
+  if (!tabla) return;
+
+  const pos_canvas_x = Math.round(node.x);
+  const pos_canvas_y = Math.round(node.y);
+  if (tabla.pos_canvas_x === pos_canvas_x && tabla.pos_canvas_y === pos_canvas_y) return;
+
+  const resp = await updateTablePosition({ id: node.id, pos_canvas_x, pos_canvas_y });
+  if (resp.ok) {
+    tabla.pos_canvas_x = pos_canvas_x;
+    tabla.pos_canvas_y = pos_canvas_y;
+  }
 }
 
 function zoomIn() {
@@ -296,7 +337,6 @@ onUnmounted(() => {
 .node-card {
   position: absolute;
   width: 220px;
-  min-height: 120px;
   background: #ffffff;
   border: 1px solid #d6e4ff;
   border-radius: 1rem;
@@ -329,5 +369,22 @@ onUnmounted(() => {
 .node-description {
   color: #5a677d;
   font-size: 0.92rem;
+}
+
+.field-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0 0;
+}
+
+.field-item {
+  font-size: 0.88rem;
+  color: #4a5568;
+  line-height: 1.4;
+  padding: 0.15rem 0;
+}
+
+.field-item.text-muted {
+  color: #6c757d;
 }
 </style>
