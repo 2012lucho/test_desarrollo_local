@@ -21,14 +21,6 @@
               >
                 Subproyectos
               </button>
-              <button
-                type="button"
-                class="list-group-item list-group-item-action"
-                :class="{ active: seccionActiva === 'tablas' }"
-                @click="seccionActiva = 'tablas'"
-              >
-                Tablas Base de Datos
-              </button>
             </div>
           </div>
         </div>
@@ -93,33 +85,6 @@
             </div>
 
 
-            <div v-if="seccionActiva === 'tablas'">
-              <div class="mb-3">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                  <label class="form-label mb-0">Tablas de base de datos</label>
-                  <button type="button" class="btn btn-sm btn-outline-primary" @click="agregarTabla()">Agregar tabla</button>
-                </div>
-                <div v-if="!tablas.length" class="text-muted mb-2">Sin tablas aún.</div>
-                <div v-for="(tabla, index) in tablas" :key="tabla.id ?? index" class="card mb-2">
-                  <div class="card-header d-flex justify-content-between align-items-center p-2">
-                    <div>
-                      <button type="button" class="btn btn-link p-0 text-start" style="text-decoration: none;" @click="toggleTabla(tabla)">
-                        <strong>{{ tabla.nombre || 'Tabla sin nombre' }}</strong>
-                      </button>
-                    </div>
-                    <div class="btn-group">
-                      <button type="button" class="btn btn-sm btn-outline-secondary" @click="toggleTabla(tabla)">
-                        {{ isTablaExpanded(tabla.id) ? 'Ocultar' : 'Mostrar' }}
-                      </button>
-                      <button type="button" class="btn btn-sm btn-outline-danger" @click="quitarTabla(index)">Eliminar</button>
-                    </div>
-                  </div>
-                  <div v-show="isTablaExpanded(tabla.id)" class="card-body">
-                    <FormularioTablaBody :tabla="tabla" :tablas="tablas" :mensajeError="getTablaError(tabla)" />
-                  </div>
-                </div>
-              </div>
-            </div>
 
             <div v-if="props.mensajeError?.value" class="alert alert-danger py-1 mt-3 mb-0">
               {{ props.mensajeError.value }}
@@ -134,14 +99,11 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import FormularioSubproyectoBody from './FormularioSubproyectoBody.vue';
-import FormularioTablaBody from './FormularioTablaBody.vue';
 
 const props = defineProps(['form', 'mensajeError']);
 const seccionActiva = ref('general');
 const expandedSubproyectos = ref([]);
 const _subproyectoErrores = new Map();
-const expandedTablas = ref([]);
-const _tablaErrores = new Map();
 
 const generarIdTemporal = () => -(Date.now() + Math.floor(Math.random() * 1000));
 
@@ -203,56 +165,6 @@ const tablas = computed({
     }
   },
 });
-
-function isTablaExpanded(id) {
-  return id != null && expandedTablas.value.includes(id);
-}
-
-function toggleTabla(tabla) {
-  if (!tabla || tabla.id == null) {
-    return;
-  }
-  const id = tabla.id;
-  const index = expandedTablas.value.indexOf(id);
-  if (index === -1) {
-    expandedTablas.value.push(id);
-  } else {
-    expandedTablas.value.splice(index, 1);
-  }
-}
-
-function getTablaError(tabla) {
-  if (!tabla || tabla.id == null) {
-    return ref('');
-  }
-  if (!_tablaErrores.has(tabla.id)) {
-    _tablaErrores.set(tabla.id, ref(''));
-  }
-  return _tablaErrores.get(tabla.id);
-}
-
-function agregarTabla() {
-  const nueva = {
-    id: generarIdTemporal(),
-    nombre: '',
-    campos: [],
-  };
-  tablas.value.push(nueva);
-  getTablaError(nueva);
-  if (!isTablaExpanded(nueva.id)) {
-    expandedTablas.value.push(nueva.id);
-  }
-}
-
-function quitarTabla(index) {
-  const tablaId = tablas.value[index]?.id;
-  tablas.value.splice(index, 1);
-  if (tablaId != null) {
-    expandedTablas.value = expandedTablas.value.filter((id) => id !== tablaId);
-    _tablaErrores.delete(tablaId);
-  }
-}
-
 
 function actualizarComponentesRelacionados(subproyectoId, seleccionados) {
   if (!subproyectoId) return;

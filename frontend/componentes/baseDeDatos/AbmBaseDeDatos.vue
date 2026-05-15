@@ -55,7 +55,10 @@
         >
           <div class="node-header">
             <span>{{ getNodeLabel(node) }}</span>
-            <button type="button" class="btn btn-sm btn-outline-secondary btn-edit-table" @click.stop.prevent="editarTabla(node.id)">Editar</button>
+            <div class="node-actions">
+              <button type="button" class="btn btn-sm btn-outline-secondary btn-edit-table" @click.stop.prevent="editarTabla(node.id)">Editar</button>
+              <button type="button" class="btn btn-sm btn-outline-danger btn-delete-table" @click.stop.prevent="eliminarTabla(node.id)">Eliminar</button>
+            </div>
           </div>
           <div class="node-body">
             <ul class="field-list">
@@ -103,12 +106,28 @@ const canvasTransformStyle = computed(() => ({
   transformOrigin: '0 0',
 }));
 
-const canvasWidth = computed(() => Math.max(canvasRect.width, 900));
-const canvasHeight = computed(() => Math.max(canvasRect.height, 520));
+const canvasWidth = computed(() => {
+  const maxNodeX = nodes.value.reduce((max, node) => Math.max(max, node.x + NODE_WIDTH + 60), 0);
+  return Math.max(canvasRect.width, maxNodeX, 900);
+});
+const canvasHeight = computed(() => {
+  const maxNodeY = nodes.value.reduce((max, node) => Math.max(max, node.y + NODE_HEIGHT + 60), 0);
+  return Math.max(canvasRect.height, maxNodeY, 520);
+});
 
 const tableConnections = computed(() => {
   const seen = new Set();
   const connections = [];
+  const campoPorId = new Map();
+
+  tables.value.forEach((tabla) => {
+    if (!Array.isArray(tabla.campos)) return;
+    tabla.campos.forEach((campo) => {
+      if (campo?.id !== undefined && campo?.id !== null) {
+        campoPorId.set(String(campo.id), { ...campo, tablaId: tabla.id });
+      }
+    });
+  });
 
   tables.value.forEach((tabla) => {
     if (!Array.isArray(tabla.campos)) return;
@@ -116,7 +135,10 @@ const tableConnections = computed(() => {
     tabla.campos.forEach((campo) => {
       if (!Array.isArray(campo.relaciones)) return;
       campo.relaciones.forEach((rel) => {
-        const destinoTablaId = rel.destino?.id_tabla ?? rel.origen?.id_tabla;
+        const destinoTablaId = rel.destino?.id_tabla
+          || rel.origen?.id_tabla
+          || (rel.id_campo_2 ? campoPorId.get(String(rel.id_campo_2))?.tablaId : null)
+          || (rel.id_campo_1 ? campoPorId.get(String(rel.id_campo_1))?.tablaId : null);
         const origenTablaId = tabla.id;
         if (!destinoTablaId || destinoTablaId === origenTablaId) return;
 
@@ -202,6 +224,23 @@ function editarTabla(tablaId) {
   if (!tablaOrigen) return;
   const tablaCopia = ref(JSON.parse(JSON.stringify(tablaOrigen)));
   abrirModalTabla(tablaCopia, false);
+}
+
+async function eliminarTabla(tablaId) {
+  const tablaOrigen = tables.value.find((item) => item.id === tablaId);
+  if (!tablaOrigen || !selectedProject.value) return;
+  const confirmMessage = `¿Eliminar la tabla "${tablaOrigen.nombre || 'Tabla'}"? Esta acción eliminará la tabla del proyecto.`;
+  if (!window.confirm(confirmMessage)) return;
+
+  const tablasActuales = tables.value.filter((item) => item.id !== tablaId);
+  const tablasPayload = prepararTablasPayload(tablasActuales);
+  const resp = await updateProjectTables(selectedProject.value, tablasPayload);
+
+  if (resp.ok) {
+    loadTables();
+  } else {
+    mensajeErrorTabla.value = resp.error || 'Error eliminando la tabla';
+  }
 }
 
 function prepararTablasPayload(tablas) {
@@ -479,11 +518,14 @@ onUnmounted(() => {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  overflow: visible;
+  z-index: 1;
 }
 
 .canvas-grid {
   position: absolute;
   inset: 0;
+  z-index: 0;
   background-image: linear-gradient(to right, rgba(44, 123, 229, 0.08) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(44, 123, 229, 0.08) 1px, transparent 1px);
   background-size: 40px 40px;
@@ -528,6 +570,41 @@ onUnmounted(() => {
   border-bottom: 1px solid #eef4ff;
   font-weight: 600;
   color: #1d3557;
+}
+
+.node-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.btn-edit-table,
+.btn-delete-table {
+  border-color: #ffffff;
+  color: #ffffff;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+}
+
+.btn-edit-table {
+  background-color: #6c757d;
+}
+
+.btn-delete-table {
+  background-color: #dc3545;
+}
+
+.btn-edit-table:hover,
+.btn-delete-table:hover {
+  border-color: #ffffff;
+}
+
+.btn-edit-table:hover {
+  background: #5a6268;
+}
+
+.btn-delete-table:hover {
+  background: #bd2130;
 }
 
 .btn-edit-table {
@@ -578,7 +655,8 @@ onUnmounted(() => {
 .relation-line {
   fill: none;
   stroke: #2c7be5;
-  stroke-width: 2;
-  opacity: 0.75;
+  stroke-width: 3;
+  stroke-linecap: round;
+  opacity: 0.9;
 }
 </style>
