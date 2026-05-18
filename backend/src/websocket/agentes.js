@@ -94,6 +94,29 @@ module.exports = (socket, io) => {
     }
   });
 
+  socket.on('agentes:update-position', async (payload, callback) => {
+    const id = String(payload?.id || '').trim();
+    const pos_canvas_x = payload.pos_canvas_x !== undefined ? Number(payload.pos_canvas_x) : null;
+    const pos_canvas_y = payload.pos_canvas_y !== undefined ? Number(payload.pos_canvas_y) : null;
+
+    if (!id) {
+      return safeCallback(callback, { ok: false, error: 'Id inválido para actualizar posición' });
+    }
+
+    try {
+      const affected = await db('agentes').where({ id }).update({ pos_canvas_x, pos_canvas_y });
+      if (!affected) {
+        return safeCallback(callback, { ok: false, error: 'Agente no encontrado', status: 404 });
+      }
+      const agente = await db('agentes').where({ id }).first();
+      io.emit('agentes:changed', { action: 'updated', agente });
+      safeCallback(callback, { ok: true, data: agente });
+    } catch (error) {
+      console.error('agentes:update-position error', error);
+      safeCallback(callback, { ok: false, error: 'Error actualizando posición del agente' });
+    }
+  });
+
   socket.on('agentes:delete', async (payload, callback) => {
     const id = String(payload?.id || payload || '').trim();
     if (!id) {

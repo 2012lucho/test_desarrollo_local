@@ -143,14 +143,27 @@ function abrirNuevoAgente() {
 
 function syncNodesWithAgentes() {
   const existById = Object.fromEntries(nodes.value.map((node) => [node.id, node]));
+
   nodes.value = agentes.value.map((agente, index) => {
-    if (existById[agente.id]) {
-      return existById[agente.id];
+    const existingNode = existById[agente.id];
+    const hasStoredPos = agente.pos_canvas_x !== null && agente.pos_canvas_x !== undefined && agente.pos_canvas_y !== null && agente.pos_canvas_y !== undefined;
+    const storedX = hasStoredPos ? Number(agente.pos_canvas_x) : null;
+    const storedY = hasStoredPos ? Number(agente.pos_canvas_y) : null;
+    const defaultX = 60 + (index % 3) * 260;
+    const defaultY = 60 + Math.floor(index / 3) * 180;
+
+    if (existingNode) {
+      return {
+        ...existingNode,
+        x: hasStoredPos ? storedX : existingNode.x,
+        y: hasStoredPos ? storedY : existingNode.y,
+      };
     }
+
     return {
       id: agente.id,
-      x: 60 + (index % 3) * 260,
-      y: 60 + Math.floor(index / 3) * 180,
+      x: hasStoredPos ? storedX : defaultX,
+      y: hasStoredPos ? storedY : defaultY,
     };
   });
 }
@@ -379,7 +392,29 @@ function onCanvasPointerMove(event) {
   }
 }
 
-function endPointerActions() {
+async function persistNodePosition(node) {
+  const agente = agentesMap.value[node.id];
+  if (!agente) return;
+
+  const pos_canvas_x = Math.round(node.x);
+  const pos_canvas_y = Math.round(node.y);
+  if (agente.pos_canvas_x === pos_canvas_x && agente.pos_canvas_y === pos_canvas_y) return;
+
+  socket.emit('agentes:update-position', { id: node.id, pos_canvas_x, pos_canvas_y }, (resp) => {
+    if (resp.ok && resp.data) {
+      agente.pos_canvas_x = pos_canvas_x;
+      agente.pos_canvas_y = pos_canvas_y;
+    } else {
+      console.error(resp.error || 'Error actualizando la posición del agente');
+    }
+  });
+}
+
+async function endPointerActions() {
+  if (draggingNode.value) {
+    const node = draggingNode.value.node;
+    await persistNodePosition(node);
+  }
   draggingNode.value = null;
 }
 

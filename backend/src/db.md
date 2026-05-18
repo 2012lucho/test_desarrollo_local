@@ -33,6 +33,15 @@
 - creado_el datetime notnull (default now)
 - actualizado_el datetime notnull (default now)
 
+## agentes
+- id varchar (255) pk
+- nombre varchar (255) null
+- descripcion text null
+- promt_sistema text null
+- modelo varchar (255) null
+- pos_canvas_x integer null
+- pos_canvas_y integer null
+
 ## tecnologias
 - id integer pk autoincremental
 - nombre varchar (100) notnull
