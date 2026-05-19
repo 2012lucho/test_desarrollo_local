@@ -80,17 +80,59 @@
             <button class="icon-button icon-danger" @pointerdown.stop @click.stop="eliminarAgente(node.id)" type="button" aria-label="Eliminar agente">
               🗑️
             </button>
+            <button
+              v-if="nodeHasChatInput(node)"
+              class="icon-button icon-chat"
+              @pointerdown.stop.prevent="openChatWindow(node)"
+              @click.stop
+              type="button"
+              aria-label="Abrir chat"
+            >
+              💬
+            </button>
           </div>
-          <div class="handle input-handle" @pointerdown.stop.prevent="finishConnection(node)" @click.stop>
+          <div
+            class="handle input-handle"
+            :class="{ 'handle-disabled': !nodeAcceptsInput(node) }"
+            @pointerdown.stop.prevent="nodeAcceptsInput(node) && finishConnection(node)"
+            @click.stop
+          >
             <span class="handle-dot" />
             Entrada
           </div>
-          <div class="handle output-handle" @pointerdown.stop.prevent="startConnection(node)" @click.stop>
+          <div
+            class="handle output-handle"
+            :class="{ 'handle-disabled': !nodeProvidesOutput(node) }"
+            @pointerdown.stop.prevent="nodeProvidesOutput(node) && startConnection(node)"
+            @click.stop
+          >
             Salida
             <span class="handle-dot" />
           </div>
         </div>
       </div>
+      </div>
+      <div
+        v-if="chatWindow.visible"
+        class="chat-window"
+        :style="{ left: `${chatWindow.x}px`, top: `${chatWindow.y}px`, width: `${chatWindow.width}px`, height: `${chatWindow.height}px` }"
+      >
+        <div class="chat-window-header" @pointerdown.prevent="startChatDrag($event)">
+          <span>Chat: {{ chatWindow.title }}</span>
+          <button class="btn-close" type="button" aria-label="Cerrar" @click="closeChatWindow"></button>
+        </div>
+        <div class="chat-window-body">
+          <div class="chat-messages">
+            <div v-for="(message, index) in chatMessages" :key="index" :class="['chat-message', message.role]">
+              <div class="chat-message-role">{{ message.role === 'user' ? 'Tú' : 'Sistema' }}</div>
+              <div class="chat-message-text">{{ message.text }}</div>
+            </div>
+          </div>
+          <div class="chat-input-row">
+            <textarea v-model="chatInput" class="form-control chat-input" placeholder="Escribe un mensaje..."></textarea>
+            <button class="btn btn-primary chat-send-button" type="button" @click="sendChatMessage">Enviar</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -118,9 +160,23 @@ const availableBloques = ref([]);
 const mensajeError = ref('');
 const nodes = ref([]);
 const agentesMap = computed(() => Object.fromEntries(agentes.value.map((agente) => [agente.id, agente])));
+const bloquesMap = computed(() => Object.fromEntries(availableBloques.value.map((bloque) => [bloque.id, bloque])));
 const hasSelectedFlujo = computed(() => selectedFlujo.value !== null && selectedFlujo.value !== undefined && selectedFlujo.value !== '');
 const conexiones = ref([]);
 const connectionStart = ref(null);
+const chatWindow = reactive({
+  visible: false,
+  nodeId: null,
+  title: '',
+  x: 80,
+  y: 80,
+  width: 420,
+  height: 360,
+  dragging: false,
+  offsetX: 0,
+  offsetY: 0,
+});
+const chatMessages = ref([]);
 const draggingNode = ref(null);
 const canvasRect = reactive({ left: 0, top: 0, width: 0, height: 0 });
 const pointerPos = reactive({ x: 0, y: 0 });
@@ -375,7 +431,100 @@ function connectorPosition(node, type) {
   return { x, y };
 }
 
+function parseConfigValue(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+}
+
+function isChatConfigItem(item) {
+  return item && typeof item === 'object' && String(item.type) === 't_chat';
+}
+
+function configValueHasChatType(value) {
+  if (value === null || value === undefined) return false;
+  if (typeof value !== 'object') return false;
+  if (Array.isArray(value)) {
+    return value.some(isChatConfigItem);
+  }
+  return isChatConfigItem(value);
+}
+
+function nodeAcceptsInput(node) {
+  const agente = agentesMap.value[node.id];
+  const bloque = agente ? bloquesMap.value[agente.id_tipo_bloque] : null;
+  if (!bloque) return true;
+  const configEntrada = parseConfigValue(bloque.config_entrada);
+  if (configEntrada === null) return false;
+  if (Array.isArray(configEntrada) && configEntrada.length === 0) return false;
+  if (configValueHasChatType(configEntrada)) return false;
+  return true;
+}
+
+function nodeHasChatInput(node) {
+  const agente = agentesMap.value[node.id];
+  const bloque = agente ? bloquesMap.value[agente.id_tipo_bloque] : null;
+  if (!bloque) return false;
+  const configEntrada = parseConfigValue(bloque.config_entrada);
+  return configValueHasChatType(configEntrada);
+}
+
+function nodeProvidesOutput(node) {
+  const agente = agentesMap.value[node.id];
+  const bloque = agente ? bloquesMap.value[agente.id_tipo_bloque] : null;
+  if (!bloque) return true;
+  const configSalida = parseConfigValue(bloque.config_salida);
+  if (configSalida === null) return false;
+  if (Array.isArray(configSalida) && configSalida.length === 0) return false;
+  return true;
+}
+
+function openChatWindow(node) {
+  chatWindow.visible = true;
+  chatWindow.nodeId = node.id;
+  chatWindow.title = getNodeLabel(node);
+  chatWindow.x = Math.min(Math.max(20, node.x + 20), window.innerWidth - chatWindow.width - 20);
+  chatWindow.y = Math.min(Math.max(20, node.y + 20), window.innerHeight - chatWindow.height - 20);
+  chatMessages.value = [{ role: 'system', text: `Chat del nodo ${chatWindow.title}` }];
+}
+
+function startChatDrag(event) {
+  chatWindow.dragging = true;
+  chatWindow.offsetX = event.clientX - chatWindow.x;
+  chatWindow.offsetY = event.clientY - chatWindow.y;
+  event.preventDefault();
+}
+
+function onGlobalPointerMove(event) {
+  if (!chatWindow.dragging) return;
+  chatWindow.x = Math.min(Math.max(10, event.clientX - chatWindow.offsetX), window.innerWidth - chatWindow.width - 10);
+  chatWindow.y = Math.min(Math.max(10, event.clientY - chatWindow.offsetY), window.innerHeight - chatWindow.height - 10);
+}
+
+function onGlobalPointerUp() {
+  chatWindow.dragging = false;
+}
+
+function closeChatWindow() {
+  chatWindow.visible = false;
+}
+
+function sendChatMessage() {
+  if (!chatInput.value.trim()) return;
+  chatMessages.value.push({ role: 'user', text: chatInput.value.trim() });
+  chatInput.value = '';
+}
+
+const chatInput = ref('');
+
 function startConnection(node) {
+  if (!nodeProvidesOutput(node)) return;
   connectionStart.value = {
     fromId: node.id,
     fromLabel: getNodeLabel(node),
@@ -386,6 +535,7 @@ function startConnection(node) {
 function finishConnection(node) {
   if (!connectionStart.value) return;
   if (node.id === connectionStart.value.fromId) return;
+  if (!nodeAcceptsInput(node)) return;
   const exists = conexiones.value.some(
     (con) => con.id_nodo_origen === connectionStart.value.fromId && con.id_nodo_destino === node.id,
   );
@@ -507,10 +657,14 @@ onMounted(() => {
   socket.on('agentes_nodo_flujo_coneccion:changed', cargarConexiones);
   socket.on('agentes_tipo_bloques_especiales:changed', loadBloquesEspeciales);
   socket.on('agentes_flujos:changed', cargarFlujos);
+  window.addEventListener('pointermove', onGlobalPointerMove);
+  window.addEventListener('pointerup', onGlobalPointerUp);
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', updateCanvasRect);
+  window.removeEventListener('pointermove', onGlobalPointerMove);
+  window.removeEventListener('pointerup', onGlobalPointerUp);
   socket.off('agentes_nodo_flujo:changed', cargarAgentes);
   socket.off('agentes_nodo_flujo_coneccion:changed', cargarConexiones);
   socket.off('agentes_tipo_bloques_especiales:changed', loadBloquesEspeciales);
@@ -727,6 +881,97 @@ onUnmounted(() => {
 
 .output-handle {
   justify-content: flex-end;
+}
+
+.handle-disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  background: #f0f0f0;
+  color: #7a8ba9;
+}
+
+.icon-chat {
+  border-color: #cfe2ff;
+  color: #0d6efd;
+}
+
+.icon-chat:hover {
+  background: #e7f1ff;
+}
+
+.chat-window {
+  position: fixed;
+  z-index: 1100;
+  background: #fff;
+  border: 1px solid #d6e4ff;
+  border-radius: 1rem;
+  box-shadow: 0 1rem 2rem rgba(10, 37, 82, 0.15);
+  overflow: hidden;
+}
+
+.chat-window-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  background: #eef4ff;
+  border-bottom: 1px solid #d6e4ff;
+  cursor: move;
+  user-select: none;
+}
+
+.chat-window-body {
+  display: flex;
+  flex-direction: column;
+  height: calc(100% - 3.25rem);
+  padding: 0.75rem 1rem 1rem;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.chat-message {
+  margin-bottom: 0.75rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 0.85rem;
+  background: #f8f9ff;
+}
+
+.chat-message.user {
+  background: #cfe2ff;
+  align-self: flex-end;
+}
+
+.chat-message-role {
+  font-size: 0.75rem;
+  color: #6c757d;
+  margin-bottom: 0.35rem;
+}
+
+.chat-message-text {
+  white-space: pre-wrap;
+}
+
+.chat-input-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+.chat-input {
+  flex: 1;
+  resize: none;
+  min-height: 4rem;
+}
+
+.chat-send-button {
+  flex-shrink: 0;
+  align-self: flex-end;
 }
 
 .handle-dot {
