@@ -1,6 +1,6 @@
 <template>
   <div>
-    <h5 class="mb-0">{{ isEditing ? 'Editar agente' : 'Nuevo agente' }}</h5>
+    <h5 class="mb-0">{{ isEditing ? 'Editar nodo de flujo' : 'Nuevo nodo de flujo' }}</h5>
   </div>
 </template>
 

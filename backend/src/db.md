@@ -39,8 +39,20 @@
 - descripcion text null
 - promt_sistema text null
 - modelo varchar (255) null
+
+## agentes_nodo_flujo
+- id integer pk autoincremental
+- nombre varchar (255) notnull
 - pos_canvas_x integer null
 - pos_canvas_y integer null
+- id_agente varchar (255) null
+- id_tipo_bloque integer notnull
+
+## agentes_tipo_bloques_especiales
+- id integer pk autoincremental
+- nombre varchar (255) notnull
+- descripcion text null
+- modelo_config json null
 
 ## tecnologias
 - id integer pk autoincremental

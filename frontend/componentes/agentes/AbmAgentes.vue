@@ -1,7 +1,8 @@
 <template>
   <div class="agentes-page">
     <div class="toolbar">
-      <button class="btn" @click="abrirNuevoAgente">+ Nuevo agente</button>
+      <button class="btn" @click="abrirNuevoAgente">+ Nuevo nodo</button>
+      <button class="btn btn-secondary" @click="abrirGestionBloques">Gestionar Bloques</button>
       <button class="btn" @click="zoomOut">- Alejar</button>
       <button class="btn" @click="zoomReset">100%</button>
       <button class="btn" @click="zoomIn">+ Acercar</button>
@@ -52,7 +53,7 @@
         <div class="canvas-grid" />
 
         <div v-if="!nodes.length" class="canvas-empty">
-          Sin agentes registrados. Usa + Nuevo agente para crear uno.
+          Sin nodos de flujo registrados. Usa + Nuevo nodo para crear uno.
         </div>
 
         <div
@@ -96,12 +97,14 @@ import { useModal } from '../../composables/useModal.js';
 import FormularioAgenteHeader from './FormularioAgenteHeader.vue';
 import FormularioAgenteBody from './FormularioAgenteBody.vue';
 import FormularioAgenteFooter from './FormularioAgenteFooter.vue';
+import GestionBloquesHeader from './GestionBloquesHeader.vue';
+import GestionBloquesEspeciales from './GestionBloquesEspeciales.vue';
 
 const socket = io(import.meta.env.VITE_API_URL);
 const { mostrarModal } = useModal();
 const canvasRef = ref(null);
 const agentes = ref([]);
-const availableModels = ref([]);
+const availableBloques = ref([]);
 const mensajeError = ref('');
 const nodes = ref([]);
 const agentesMap = computed(() => Object.fromEntries(agentes.value.map((agente) => [agente.id, agente])));
@@ -141,6 +144,15 @@ function abrirNuevoAgente() {
   abrirFormularioAgente(null);
 }
 
+function abrirGestionBloques() {
+  mostrarModal({
+    header: GestionBloquesHeader,
+    body: GestionBloquesEspeciales,
+    bodyProps: { socket },
+    fullscreen: false,
+  });
+}
+
 function syncNodesWithAgentes() {
   const existById = Object.fromEntries(nodes.value.map((node) => [node.id, node]));
 
@@ -169,34 +181,33 @@ function syncNodesWithAgentes() {
 }
 
 function cargarAgentes() {
-  socket.emit('agentes:list', null, (resp) => {
+  socket.emit('agentes_nodo_flujo:list', null, (resp) => {
     if (resp.ok) {
       agentes.value = resp.data || [];
       syncNodesWithAgentes();
       mensajeError.value = '';
     } else {
-      mensajeError.value = resp.error || 'Error cargando agentes';
+      mensajeError.value = resp.error || 'Error cargando nodos de flujo';
     }
   });
 }
 
-function loadAvailableModels() {
-  socket.emit('ollama:list', null, (resp) => {
+function loadBloquesEspeciales() {
+  socket.emit('agentes_tipo_bloques_especiales:list', null, (resp) => {
     if (resp.ok) {
-      availableModels.value = resp.data ?? [];
+      availableBloques.value = resp.data ?? [];
     } else {
-      availableModels.value = [];
+      availableBloques.value = [];
     }
   });
 }
 
 function abrirFormularioAgente(agente = null) {
   const form = ref({
-    id: agente?.id ?? '',
+    id: agente?.id ?? null,
     nombre: agente?.nombre ?? '',
-    descripcion: agente?.descripcion ?? '',
-    promt_sistema: agente?.promt_sistema ?? '',
-    modelo: agente?.modelo ?? (availableModels.value[0]?.name ?? ''),
+    id_tipo_bloque: agente?.id_tipo_bloque ?? '',
+    id_agente: agente?.id_agente ?? null,
   });
   const originalId = agente?.id ?? null;
   const isEditing = !!originalId;
@@ -206,39 +217,26 @@ function abrirFormularioAgente(agente = null) {
 
   function guardar() {
     mensajeErrorForm.value = '';
-    const id = String(form.value.id || '').trim();
     const nombre = String(form.value.nombre || '').trim();
+    const idTipoBloque = Number(form.value.id_tipo_bloque || 0);
+
     if (!nombre) {
       mensajeErrorForm.value = 'El nombre es requerido';
       return;
     }
-    if (!id) {
-      mensajeErrorForm.value = 'El id es requerido';
-      return;
-    }
-
-    const modelo = String(form.value.modelo || '').trim();
-    if (!modelo) {
-      mensajeErrorForm.value = 'El modelo de Ollama es requerido';
-      return;
-    }
-
-    const modeloValido = availableModels.value.some((model) => String(model.name ?? model) === modelo);
-    if (!modeloValido) {
-      mensajeErrorForm.value = 'Selecciona un modelo válido de Ollama';
+    if (!idTipoBloque) {
+      mensajeErrorForm.value = 'El tipo de bloque es requerido';
       return;
     }
 
     cargandoForm.value = true;
     const payload = {
-      id,
-      originalId,
+      id: originalId,
       nombre,
-      descripcion: String(form.value.descripcion || '').trim(),
-      promt_sistema: String(form.value.promt_sistema || '').trim(),
-      modelo,
+      id_tipo_bloque: idTipoBloque,
+      id_agente: form.value.id_agente || null,
     };
-    const accion = isEditing ? 'agentes:update' : 'agentes:create';
+    const accion = isEditing ? 'agentes_nodo_flujo:update' : 'agentes_nodo_flujo:create';
 
     socket.emit(accion, payload, (resp) => {
       cargandoForm.value = false;
@@ -246,7 +244,7 @@ function abrirFormularioAgente(agente = null) {
         if (typeof cerrar === 'function') cerrar();
         cargarAgentes();
       } else {
-        mensajeErrorForm.value = resp.error || 'Error guardando agente';
+        mensajeErrorForm.value = resp.error || 'Error guardando nodo de flujo';
       }
     });
   }
@@ -257,7 +255,7 @@ function abrirFormularioAgente(agente = null) {
       body: FormularioAgenteBody,
       footer: FormularioAgenteFooter,
       headerProps: { isEditing },
-      bodyProps: { form, mensajeError: mensajeErrorForm, models: availableModels.value },
+      bodyProps: { form, mensajeError: mensajeErrorForm, blocks: availableBloques.value, isEditing },
       footerProps: { cargando: cargandoForm.value, onGuardar: guardar, onCerrar: () => cerrar && cerrar() },
       fullscreen: false,
     });
@@ -273,12 +271,12 @@ function editarAgente(id) {
 }
 
 function eliminarAgente(id) {
-  if (!confirm('¿Eliminar este agente?')) return;
-  socket.emit('agentes:delete', { id }, (resp) => {
+  if (!confirm('¿Eliminar este nodo de flujo?')) return;
+  socket.emit('agentes_nodo_flujo:delete', { id }, (resp) => {
     if (resp.ok) {
       cargarAgentes();
     } else {
-      mensajeError.value = resp.error || 'Error eliminando agente';
+      mensajeError.value = resp.error || 'Error eliminando nodo de flujo';
     }
   });
 }
@@ -298,7 +296,7 @@ function nodeStyle(node) {
 }
 
 function getNodeLabel(node) {
-  return agentesMap.value[node.id]?.nombre || 'Agente';
+  return agentesMap.value[node.id]?.nombre || 'Nodo';
 }
 
 function connectorPosition(node, type) {
@@ -400,12 +398,12 @@ async function persistNodePosition(node) {
   const pos_canvas_y = Math.round(node.y);
   if (agente.pos_canvas_x === pos_canvas_x && agente.pos_canvas_y === pos_canvas_y) return;
 
-  socket.emit('agentes:update-position', { id: node.id, pos_canvas_x, pos_canvas_y }, (resp) => {
+  socket.emit('agentes_nodo_flujo:update-position', { id: node.id, pos_canvas_x, pos_canvas_y }, (resp) => {
     if (resp.ok && resp.data) {
       agente.pos_canvas_x = pos_canvas_x;
       agente.pos_canvas_y = pos_canvas_y;
     } else {
-      console.error(resp.error || 'Error actualizando la posición del agente');
+      console.error(resp.error || 'Error actualizando la posición del nodo de flujo');
     }
   });
 }
@@ -421,14 +419,16 @@ async function endPointerActions() {
 onMounted(() => {
   updateCanvasRect();
   cargarAgentes();
-  loadAvailableModels();
+  loadBloquesEspeciales();
   window.addEventListener('resize', updateCanvasRect);
-  socket.on('agentes:changed', cargarAgentes);
+  socket.on('agentes_nodo_flujo:changed', cargarAgentes);
+  socket.on('agentes_tipo_bloques_especiales:changed', loadBloquesEspeciales);
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', updateCanvasRect);
-  socket.off('agentes:changed', cargarAgentes);
+  socket.off('agentes_nodo_flujo:changed', cargarAgentes);
+  socket.off('agentes_tipo_bloques_especiales:changed', loadBloquesEspeciales);
   socket.disconnect();
 });
 </script>

@@ -19,7 +19,130 @@ module.exports = (socket, io) => {
     }
   });
 
-  socket.on('agentes:get', async (payload, callback) => {
+  socket.on('agentes_tipo_bloques_especiales:list', async (_payload, callback) => {
+    try {
+      const tipos = await db('agentes_tipo_bloques_especiales').select('*').orderBy('id', 'asc');
+      safeCallback(callback, { ok: true, data: tipos });
+    } catch (error) {
+      console.error('agentes_tipo_bloques_especiales:list error', error);
+      safeCallback(callback, { ok: false, error: 'Error listando tipos de bloque especiales' });
+    }
+  });
+
+  socket.on('agentes_tipo_bloques_especiales:get', async (payload, callback) => {
+    const id = Number(payload?.id || payload || 0);
+    if (!id) {
+      return safeCallback(callback, { ok: false, error: 'Id inválido para obtener tipo de bloque especial' });
+    }
+
+    try {
+      const tipo = await db('agentes_tipo_bloques_especiales').where({ id }).first();
+      if (!tipo) {
+        return safeCallback(callback, { ok: false, error: 'Tipo de bloque especial no encontrado', status: 404 });
+      }
+      safeCallback(callback, { ok: true, data: tipo });
+    } catch (error) {
+      console.error('agentes_tipo_bloques_especiales:get error', error);
+      safeCallback(callback, { ok: false, error: 'Error obteniendo tipo de bloque especial' });
+    }
+  });
+
+  socket.on('agentes_tipo_bloques_especiales:create', async (payload, callback) => {
+    const nombre = String(payload?.nombre || '').trim();
+    const descripcion = String(payload?.descripcion || '').trim() || null;
+    const modelo_config = payload?.modelo_config ?? null;
+
+    if (!nombre) {
+      return safeCallback(callback, { ok: false, error: 'El nombre es requerido' });
+    }
+
+    try {
+      const [id] = await db('agentes_tipo_bloques_especiales').insert({ nombre, descripcion, modelo_config });
+      const tipo = await db('agentes_tipo_bloques_especiales').where({ id }).first();
+      io.emit('agentes_tipo_bloques_especiales:changed', { action: 'created', tipo });
+      safeCallback(callback, { ok: true, data: tipo });
+    } catch (error) {
+      console.error('agentes_tipo_bloques_especiales:create error', error);
+      safeCallback(callback, { ok: false, error: 'Error creando tipo de bloque especial' });
+    }
+  });
+
+  socket.on('agentes_tipo_bloques_especiales:update', async (payload, callback) => {
+    const id = Number(payload?.id || 0);
+    const nombre = String(payload?.nombre || '').trim();
+    const descripcion = String(payload?.descripcion || '').trim() || null;
+    const modelo_config = payload?.modelo_config ?? null;
+
+    if (!id) {
+      return safeCallback(callback, { ok: false, error: 'Id inválido para actualizar tipo de bloque especial' });
+    }
+    if (!nombre) {
+      return safeCallback(callback, { ok: false, error: 'El nombre es requerido' });
+    }
+
+    try {
+      const affected = await db('agentes_tipo_bloques_especiales').where({ id }).update({ nombre, descripcion, modelo_config });
+      if (!affected) {
+        return safeCallback(callback, { ok: false, error: 'Tipo de bloque especial no encontrado', status: 404 });
+      }
+      const tipo = await db('agentes_tipo_bloques_especiales').where({ id }).first();
+      io.emit('agentes_tipo_bloques_especiales:changed', { action: 'updated', tipo });
+      safeCallback(callback, { ok: true, data: tipo });
+    } catch (error) {
+      console.error('agentes_tipo_bloques_especiales:update error', error);
+      safeCallback(callback, { ok: false, error: 'Error actualizando tipo de bloque especial' });
+    }
+  });
+
+  socket.on('agentes_tipo_bloques_especiales:delete', async (payload, callback) => {
+    const id = Number(payload?.id || payload || 0);
+    if (!id) {
+      return safeCallback(callback, { ok: false, error: 'Id inválido para eliminar tipo de bloque especial' });
+    }
+
+    try {
+      const tipo = await db('agentes_tipo_bloques_especiales').where({ id }).first();
+      if (!tipo) {
+        return safeCallback(callback, { ok: false, error: 'Tipo de bloque especial no encontrado', status: 404 });
+      }
+      await db('agentes_tipo_bloques_especiales').where({ id }).delete();
+      io.emit('agentes_tipo_bloques_especiales:changed', { action: 'deleted', tipo });
+      safeCallback(callback, { ok: true, data: { id } });
+    } catch (error) {
+      console.error('agentes_tipo_bloques_especiales:delete error', error);
+      safeCallback(callback, { ok: false, error: 'Error eliminando tipo de bloque especial' });
+    }
+  });
+
+  socket.on('agentes_nodo_flujo:list', async (_payload, callback) => {
+    try {
+      const nodos = await db('agentes_nodo_flujo').select('*').orderBy('id', 'asc');
+      safeCallback(callback, { ok: true, data: nodos });
+    } catch (error) {
+      console.error('agentes_nodo_flujo:list error', error);
+      safeCallback(callback, { ok: false, error: 'Error listando nodos de flujo' });
+    }
+  });
+
+  socket.on('agentes_nodo_flujo:get', async (payload, callback) => {
+    const id = Number(payload?.id || payload || 0);
+    if (!id) {
+      return safeCallback(callback, { ok: false, error: 'Id inválido para obtener nodo de flujo' });
+    }
+
+    try {
+      const nodo = await db('agentes_nodo_flujo').where({ id }).first();
+      if (!nodo) {
+        return safeCallback(callback, { ok: false, error: 'Nodo de flujo no encontrado', status: 404 });
+      }
+      safeCallback(callback, { ok: true, data: nodo });
+    } catch (error) {
+      console.error('agentes_nodo_flujo:get error', error);
+      safeCallback(callback, { ok: false, error: 'Error obteniendo nodo de flujo' });
+    }
+  });
+
+  socket.on('agentes:create', async (payload, callback) => {
     const id = String(payload?.id || payload || '').trim();
     if (!id) {
       return safeCallback(callback, { ok: false, error: 'Id inválido para obtener agente' });
@@ -134,6 +257,102 @@ module.exports = (socket, io) => {
     } catch (error) {
       console.error('agentes:delete error', error);
       safeCallback(callback, { ok: false, error: 'Error eliminando agente' });
+    }
+  });
+
+  socket.on('agentes_nodo_flujo:create', async (payload, callback) => {
+    const nombre = String(payload?.nombre || '').trim();
+    const id_tipo_bloque = Number(payload?.id_tipo_bloque || 0);
+    const id_agente = payload?.id_agente ? String(payload.id_agente).trim() : null;
+
+    if (!nombre) {
+      return safeCallback(callback, { ok: false, error: 'El nombre es requerido' });
+    }
+    if (!id_tipo_bloque) {
+      return safeCallback(callback, { ok: false, error: 'El tipo de bloque es requerido' });
+    }
+
+    try {
+      const [id] = await db('agentes_nodo_flujo').insert({ nombre, id_tipo_bloque, id_agente, pos_canvas_x: null, pos_canvas_y: null });
+      const nodo = await db('agentes_nodo_flujo').where({ id }).first();
+      io.emit('agentes_nodo_flujo:changed', { action: 'created', nodo });
+      safeCallback(callback, { ok: true, data: nodo });
+    } catch (error) {
+      console.error('agentes_nodo_flujo:create error', error);
+      safeCallback(callback, { ok: false, error: 'Error creando nodo de flujo' });
+    }
+  });
+
+  socket.on('agentes_nodo_flujo:update', async (payload, callback) => {
+    const id = Number(payload?.id || 0);
+    const nombre = String(payload?.nombre || '').trim();
+    const id_tipo_bloque = Number(payload?.id_tipo_bloque || 0);
+    const id_agente = payload?.id_agente ? String(payload.id_agente).trim() : null;
+
+    if (!id) {
+      return safeCallback(callback, { ok: false, error: 'Id inválido para actualizar nodo de flujo' });
+    }
+    if (!nombre) {
+      return safeCallback(callback, { ok: false, error: 'El nombre es requerido' });
+    }
+    if (!id_tipo_bloque) {
+      return safeCallback(callback, { ok: false, error: 'El tipo de bloque es requerido' });
+    }
+
+    try {
+      const affected = await db('agentes_nodo_flujo').where({ id }).update({ nombre, id_tipo_bloque, id_agente });
+      if (!affected) {
+        return safeCallback(callback, { ok: false, error: 'Nodo de flujo no encontrado', status: 404 });
+      }
+      const nodo = await db('agentes_nodo_flujo').where({ id }).first();
+      io.emit('agentes_nodo_flujo:changed', { action: 'updated', nodo });
+      safeCallback(callback, { ok: true, data: nodo });
+    } catch (error) {
+      console.error('agentes_nodo_flujo:update error', error);
+      safeCallback(callback, { ok: false, error: 'Error actualizando nodo de flujo' });
+    }
+  });
+
+  socket.on('agentes_nodo_flujo:update-position', async (payload, callback) => {
+    const id = Number(payload?.id || 0);
+    const pos_canvas_x = payload.pos_canvas_x !== undefined ? Number(payload.pos_canvas_x) : null;
+    const pos_canvas_y = payload.pos_canvas_y !== undefined ? Number(payload.pos_canvas_y) : null;
+
+    if (!id) {
+      return safeCallback(callback, { ok: false, error: 'Id inválido para actualizar posición' });
+    }
+
+    try {
+      const affected = await db('agentes_nodo_flujo').where({ id }).update({ pos_canvas_x, pos_canvas_y });
+      if (!affected) {
+        return safeCallback(callback, { ok: false, error: 'Nodo de flujo no encontrado', status: 404 });
+      }
+      const nodo = await db('agentes_nodo_flujo').where({ id }).first();
+      io.emit('agentes_nodo_flujo:changed', { action: 'updated', nodo });
+      safeCallback(callback, { ok: true, data: nodo });
+    } catch (error) {
+      console.error('agentes_nodo_flujo:update-position error', error);
+      safeCallback(callback, { ok: false, error: 'Error actualizando posición del nodo de flujo' });
+    }
+  });
+
+  socket.on('agentes_nodo_flujo:delete', async (payload, callback) => {
+    const id = Number(payload?.id || payload || 0);
+    if (!id) {
+      return safeCallback(callback, { ok: false, error: 'Id inválido para eliminar nodo de flujo' });
+    }
+
+    try {
+      const nodo = await db('agentes_nodo_flujo').where({ id }).first();
+      if (!nodo) {
+        return safeCallback(callback, { ok: false, error: 'Nodo de flujo no encontrado', status: 404 });
+      }
+      await db('agentes_nodo_flujo').where({ id }).delete();
+      io.emit('agentes_nodo_flujo:changed', { action: 'deleted', nodo });
+      safeCallback(callback, { ok: true, data: { id } });
+    } catch (error) {
+      console.error('agentes_nodo_flujo:delete error', error);
+      safeCallback(callback, { ok: false, error: 'Error eliminando nodo de flujo' });
     }
   });
 };
