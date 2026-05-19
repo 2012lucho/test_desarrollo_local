@@ -223,6 +223,64 @@ module.exports = (socket, io) => {
     }
   });
 
+  socket.on('agentes_nodo_flujo_coneccion:list', async (payload, callback) => {
+    try {
+      const query = db('agentes_nodo_flujo_coneccion').select('*').orderBy('id', 'asc');
+      const id_flujo = Number(payload?.id_flujo || 0);
+      if (id_flujo) {
+        query.where({ id_flujo });
+      }
+      const conexiones = await query;
+      safeCallback(callback, { ok: true, data: conexiones });
+    } catch (error) {
+      console.error('agentes_nodo_flujo_coneccion:list error', error);
+      safeCallback(callback, { ok: false, error: 'Error listando conexiones de flujo' });
+    }
+  });
+
+  socket.on('agentes_nodo_flujo_coneccion:create', async (payload, callback) => {
+    const id_nodo_origen = Number(payload?.id_nodo_origen || 0);
+    const id_nodo_destino = Number(payload?.id_nodo_destino || 0);
+    const id_flujo = Number(payload?.id_flujo || 0);
+
+    if (!id_nodo_origen || !id_nodo_destino || !id_flujo) {
+      return safeCallback(callback, { ok: false, error: 'Origen, destino y flujo son requeridos' });
+    }
+    if (id_nodo_origen === id_nodo_destino) {
+      return safeCallback(callback, { ok: false, error: 'No se puede conectar un nodo consigo mismo' });
+    }
+
+    try {
+      const [id] = await db('agentes_nodo_flujo_coneccion').insert({ id_nodo_origen, id_nodo_destino, id_flujo });
+      const conexion = await db('agentes_nodo_flujo_coneccion').where({ id }).first();
+      io.emit('agentes_nodo_flujo_coneccion:changed', { action: 'created', conexion });
+      safeCallback(callback, { ok: true, data: conexion });
+    } catch (error) {
+      console.error('agentes_nodo_flujo_coneccion:create error', error);
+      safeCallback(callback, { ok: false, error: 'Error creando conexión de flujo' });
+    }
+  });
+
+  socket.on('agentes_nodo_flujo_coneccion:delete', async (payload, callback) => {
+    const id = Number(payload?.id || 0);
+    if (!id) {
+      return safeCallback(callback, { ok: false, error: 'Id inválido para eliminar conexión' });
+    }
+
+    try {
+      const conexion = await db('agentes_nodo_flujo_coneccion').where({ id }).first();
+      if (!conexion) {
+        return safeCallback(callback, { ok: false, error: 'Conexión no encontrada', status: 404 });
+      }
+      await db('agentes_nodo_flujo_coneccion').where({ id }).delete();
+      io.emit('agentes_nodo_flujo_coneccion:changed', { action: 'deleted', conexion });
+      safeCallback(callback, { ok: true, data: { id } });
+    } catch (error) {
+      console.error('agentes_nodo_flujo_coneccion:delete error', error);
+      safeCallback(callback, { ok: false, error: 'Error eliminando conexión de flujo' });
+    }
+  });
+
   socket.on('agentes_nodo_flujo:get', async (payload, callback) => {
     const id = Number(payload?.id || payload || 0);
     if (!id) {
@@ -454,8 +512,12 @@ module.exports = (socket, io) => {
       if (!nodo) {
         return safeCallback(callback, { ok: false, error: 'Nodo de flujo no encontrado', status: 404 });
       }
-      await db('agentes_nodo_flujo').where({ id }).delete();
+      await db.transaction(async (trx) => {
+        await trx('agentes_nodo_flujo_coneccion').where({ id_nodo_origen: id }).orWhere({ id_nodo_destino: id }).delete();
+        await trx('agentes_nodo_flujo').where({ id }).delete();
+      });
       io.emit('agentes_nodo_flujo:changed', { action: 'deleted', nodo });
+      io.emit('agentes_nodo_flujo_coneccion:changed', { action: 'deleted-by-node', nodoId: id });
       safeCallback(callback, { ok: true, data: { id } });
     } catch (error) {
       console.error('agentes_nodo_flujo:delete error', error);

@@ -205,6 +205,7 @@ function cargarAgentes() {
   if (!hasSelectedFlujo.value) {
     agentes.value = [];
     nodes.value = [];
+    conexiones.value = [];
     return;
   }
 
@@ -213,8 +214,29 @@ function cargarAgentes() {
       agentes.value = resp.data || [];
       syncNodesWithAgentes();
       mensajeError.value = '';
+      cargarConexiones();
     } else {
       mensajeError.value = resp.error || 'Error cargando nodos de flujo';
+    }
+  });
+}
+
+function cargarConexiones() {
+  if (!hasSelectedFlujo.value) {
+    conexiones.value = [];
+    return;
+  }
+
+  socket.emit('agentes_nodo_flujo_coneccion:list', { id_flujo: selectedFlujo.value }, (resp) => {
+    if (resp.ok) {
+      conexiones.value = (resp.data || []).map((connection) => ({
+        ...connection,
+        from: connection.id_nodo_origen,
+        to: connection.id_nodo_destino,
+      }));
+    } else {
+      conexiones.value = [];
+      console.error(resp.error || 'Error cargando conexiones de flujo');
     }
   });
 }
@@ -327,7 +349,11 @@ function eliminarAgente(id) {
 
 function removeNode(id) {
   nodes.value = nodes.value.filter((node) => node.id !== id);
-  conexiones.value = conexiones.value.filter((con) => con.from !== id && con.to !== id);
+  conexiones.value = conexiones.value.filter((con) => {
+    const fromId = con.from ?? con.id_nodo_origen;
+    const toId = con.to ?? con.id_nodo_destino;
+    return fromId !== id && toId !== id;
+  });
   if (connectionStart.value && connectionStart.value.fromId === id) {
     connectionStart.value = null;
   }
@@ -361,13 +387,24 @@ function finishConnection(node) {
   if (!connectionStart.value) return;
   if (node.id === connectionStart.value.fromId) return;
   const exists = conexiones.value.some(
-    (con) => con.from === connectionStart.value.fromId && con.to === node.id,
+    (con) => con.id_nodo_origen === connectionStart.value.fromId && con.id_nodo_destino === node.id,
   );
   if (!exists) {
-    conexiones.value.push({
-      id: `con-${Date.now()}`,
-      from: connectionStart.value.fromId,
-      to: node.id,
+    const payload = {
+      id_nodo_origen: connectionStart.value.fromId,
+      id_nodo_destino: node.id,
+      id_flujo: selectedFlujo.value,
+    };
+    socket.emit('agentes_nodo_flujo_coneccion:create', payload, (resp) => {
+      if (resp.ok && resp.data) {
+        conexiones.value.push({
+          ...resp.data,
+          from: resp.data.id_nodo_origen,
+          to: resp.data.id_nodo_destino,
+        });
+      } else {
+        mensajeError.value = resp.error || 'Error creando conexión';
+      }
     });
   }
   connectionStart.value = null;
@@ -467,6 +504,7 @@ onMounted(() => {
   loadBloquesEspeciales();
   window.addEventListener('resize', updateCanvasRect);
   socket.on('agentes_nodo_flujo:changed', cargarAgentes);
+  socket.on('agentes_nodo_flujo_coneccion:changed', cargarConexiones);
   socket.on('agentes_tipo_bloques_especiales:changed', loadBloquesEspeciales);
   socket.on('agentes_flujos:changed', cargarFlujos);
 });
@@ -474,6 +512,7 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('resize', updateCanvasRect);
   socket.off('agentes_nodo_flujo:changed', cargarAgentes);
+  socket.off('agentes_nodo_flujo_coneccion:changed', cargarConexiones);
   socket.off('agentes_tipo_bloques_especiales:changed', loadBloquesEspeciales);
   socket.off('agentes_flujos:changed', cargarFlujos);
   socket.disconnect();
