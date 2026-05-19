@@ -8,6 +8,7 @@
       <button class="btn btn-secondary" @click="abrirGestionFlujos">Gestionar Flujos</button>
       <button class="btn" :disabled="!hasSelectedFlujo" @click="abrirNuevoAgente">+ Nuevo nodo</button>
       <button class="btn btn-secondary" @click="abrirGestionBloques">Gestionar Bloques</button>
+      <button class="btn btn-secondary" :disabled="!hasSelectedFlujo" @click="abrirEjecuciones">Ejecuciones</button>
       <button class="btn" :disabled="!hasSelectedFlujo" @click="zoomOut">- Alejar</button>
       <button class="btn" :disabled="!hasSelectedFlujo" @click="zoomReset">100%</button>
       <button class="btn" :disabled="!hasSelectedFlujo" @click="zoomIn">+ Acercar</button>
@@ -152,6 +153,7 @@ import GestionBloquesHeader from './GestionBloquesHeader.vue';
 import GestionBloquesEspeciales from './GestionBloquesEspeciales.vue';
 import GestionFlujosHeader from './GestionFlujosHeader.vue';
 import GestionFlujos from './GestionFlujos.vue';
+import EjecucionesFlujo from './EjecucionesFlujo.vue';
 
 const socket = io(import.meta.env.VITE_API_URL);
 const { mostrarModal } = useModal();
@@ -578,6 +580,15 @@ function openChatWindow(node) {
   chatMessages.value = [{ role: 'system', text: `Chat del nodo ${chatWindow.title}` }];
 }
 
+function abrirEjecuciones() {
+  if (!hasSelectedFlujo.value) return;
+  mostrarModal({
+    body: EjecucionesFlujo,
+    bodyProps: { socket, idFlujo: selectedFlujo.value },
+    fullscreen: false,
+  });
+}
+
 function startChatDrag(event) {
   chatWindow.dragging = true;
   chatWindow.offsetX = event.clientX - chatWindow.x;
@@ -600,8 +611,23 @@ function closeChatWindow() {
 }
 
 function sendChatMessage() {
-  if (!chatInput.value.trim()) return;
-  chatMessages.value.push({ role: 'user', text: chatInput.value.trim() });
+  const message = chatInput.value.trim();
+  if (!message) return;
+  chatMessages.value.push({ role: 'user', text: message });
+
+  const nodeId = chatWindow.nodeId;
+  if (nodeId && selectedFlujo.value) {
+    socket.emit('agentes_nodo_flujo_ejecucion:start', {
+      id_flujo: selectedFlujo.value,
+      id_nodo_inicio: nodeId,
+      data_entrada: { mensaje: message },
+    }, (resp) => {
+      if (!resp.ok) {
+        mensajeError.value = resp.error || 'Error iniciando ejecución de flujo';
+      }
+    });
+  }
+
   chatInput.value = '';
 }
 

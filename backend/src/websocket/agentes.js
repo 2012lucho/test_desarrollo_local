@@ -1,4 +1,5 @@
 const db = require('../db');
+const maquinaEstados = require('../../../agentes/maquinaEstados.js');
 
 function normalizeJsonValue(value) {
   if (value === null || value === undefined) {
@@ -220,6 +221,57 @@ module.exports = (socket, io) => {
     } catch (error) {
       console.error('agentes_flujos:delete error', error);
       safeCallback(callback, { ok: false, error: 'Error eliminando flujo' });
+    }
+  });
+
+  socket.on('agentes_flujo_ejecuciones:list', async (payload, callback) => {
+    const id_flujo = Number(payload?.id_flujo || 0);
+    if (!id_flujo) {
+      return safeCallback(callback, { ok: false, error: 'Id de flujo inválido para listar ejecuciones' });
+    }
+
+    try {
+      const ejecuciones = await db('ejecucion_flujo').where({ id_flujo }).orderBy('id', 'desc');
+      safeCallback(callback, { ok: true, data: ejecuciones });
+    } catch (error) {
+      console.error('agentes_flujo_ejecuciones:list error', error);
+      safeCallback(callback, { ok: false, error: 'Error listando ejecuciones de flujo' });
+    }
+  });
+
+  socket.on('agentes_flujo_ejecucion:records', async (payload, callback) => {
+    const id_ejecucion = Number(payload?.id_ejecucion || 0);
+    if (!id_ejecucion) {
+      return safeCallback(callback, { ok: false, error: 'Id de ejecución inválido para listar registros' });
+    }
+
+    try {
+      const registros = await db('registro_ejecucion_flujo').where({ id_ejecucion }).orderBy('id', 'asc');
+      safeCallback(callback, { ok: true, data: registros });
+    } catch (error) {
+      console.error('agentes_flujo_ejecucion:records error', error);
+      safeCallback(callback, { ok: false, error: 'Error listando registros de ejecución' });
+    }
+  });
+
+  socket.on('agentes_nodo_flujo_ejecucion:start', async (payload, callback) => {
+    const id_flujo = Number(payload?.id_flujo || 0);
+    const id_nodo_inicio = Number(payload?.id_nodo_inicio || 0);
+    const data_entrada = payload?.data_entrada ?? null;
+
+    if (!id_flujo) {
+      return safeCallback(callback, { ok: false, error: 'Id de flujo inválido para iniciar ejecución' });
+    }
+    if (!id_nodo_inicio) {
+      return safeCallback(callback, { ok: false, error: 'Id de nodo de inicio inválido para iniciar ejecución' });
+    }
+
+    try {
+      const ejecucion = await maquinaEstados.runFlow({ id_flujo, id_nodo_inicio, data_entrada });
+      safeCallback(callback, { ok: true, data: ejecucion });
+    } catch (error) {
+      console.error('agentes_nodo_flujo_ejecucion:start error', error);
+      safeCallback(callback, { ok: false, error: 'Error iniciando la ejecución de flujo' });
     }
   });
 
