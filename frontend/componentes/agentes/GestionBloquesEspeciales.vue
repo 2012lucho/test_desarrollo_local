@@ -6,40 +6,6 @@
 
     <div v-if="mensajeError" class="alert alert-danger py-1 mb-3">{{ mensajeError }}</div>
 
-    <div v-if="formVisible" class="card mb-4">
-      <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-          <h6 class="mb-0">{{ form.id ? 'Editar bloque' : 'Crear bloque' }}</h6>
-          <button class="btn btn-sm btn-outline-secondary" type="button" @click="cancelarFormulario">Cerrar formulario</button>
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label">Nombre</label>
-          <input class="form-control" v-model="form.nombre" placeholder="Nombre del bloque" />
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Descripción</label>
-          <textarea class="form-control" v-model="form.descripcion" rows="3" placeholder="Descripción del bloque"></textarea>
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Config Entrada</label>
-          <textarea class="form-control" v-model="form.config_entrada" rows="4" placeholder='Ejemplo: {"key": "value"}'></textarea>
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Config General</label>
-          <textarea class="form-control" v-model="form.config_general" rows="4" placeholder='Ejemplo: {"key": "value"}'></textarea>
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Config Salida</label>
-          <textarea class="form-control" v-model="form.config_salida" rows="4" placeholder='Ejemplo: {"key": "value"}'></textarea>
-        </div>
-        <div class="d-flex justify-content-end gap-2">
-          <button class="btn btn-secondary" type="button" @click="cancelarFormulario">Cancelar</button>
-          <button class="btn btn-primary" type="button" @click="guardar" :disabled="cargandoForm">{{ cargandoForm ? 'Guardando...' : 'Guardar' }}</button>
-        </div>
-      </div>
-    </div>
-
     <div class="card">
       <div class="card-body p-0">
         <table class="table table-sm table-hover mb-0">
@@ -79,6 +45,10 @@
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted } from 'vue';
+import { useModal } from '../../composables/useModal.js';
+import FormularioBloqueEspecialHeader from './FormularioBloqueEspecialHeader.vue';
+import FormularioBloqueEspecialBody from './FormularioBloqueEspecialBody.vue';
+import FormularioAgenteFooter from './FormularioAgenteFooter.vue';
 
 const props = defineProps({
   socket: { type: Object, required: true },
@@ -86,7 +56,7 @@ const props = defineProps({
 
 const bloques = ref([]);
 const mensajeError = ref('');
-const formVisible = ref(false);
+const mensajeErrorForm = ref('');
 const cargandoForm = ref(false);
 const form = reactive({
   id: null,
@@ -96,6 +66,8 @@ const form = reactive({
   config_general: '{}',
   config_salida: '{}',
 });
+const { mostrarModal } = useModal();
+let cerrarFormularioBloqueEspecial = null;
 
 function prepareConfigValue(value) {
   if (value === null || value === undefined) {
@@ -152,13 +124,24 @@ function abrirFormulario(bloque) {
     form.config_general = '{}';
     form.config_salida = '{}';
   }
-  mensajeError.value = '';
-  formVisible.value = true;
+  mensajeErrorForm.value = '';
+
+  cerrarFormularioBloqueEspecial = mostrarModal({
+    header: FormularioBloqueEspecialHeader,
+    body: FormularioBloqueEspecialBody,
+    footer: FormularioAgenteFooter,
+    headerProps: { isEditing: !!bloque },
+    bodyProps: { form, mensajeError: mensajeErrorForm },
+    footerProps: { cargando: cargandoForm, onGuardar: guardar, onCerrar: () => cerrarFormularioBloqueEspecial && cerrarFormularioBloqueEspecial() },
+    fullscreen: false,
+  });
 }
 
 function cancelarFormulario() {
-  formVisible.value = false;
-  mensajeError.value = '';
+  mensajeErrorForm.value = '';
+  if (typeof cerrarFormularioBloqueEspecial === 'function') {
+    cerrarFormularioBloqueEspecial();
+  }
 }
 
 function validarConfig(configText) {
@@ -174,12 +157,12 @@ function validarConfig(configText) {
 }
 
 function guardar() {
-  mensajeError.value = '';
+  mensajeErrorForm.value = '';
   const nombre = String(form.nombre || '').trim();
   const descripcion = String(form.descripcion || '').trim();
 
   if (!nombre) {
-    mensajeError.value = 'El nombre es requerido';
+    mensajeErrorForm.value = 'El nombre es requerido';
     return;
   }
 
@@ -191,7 +174,7 @@ function guardar() {
     config_general = validarConfig(form.config_general);
     config_salida = validarConfig(form.config_salida);
   } catch (error) {
-    mensajeError.value = error.message;
+    mensajeErrorForm.value = error.message;
     return;
   }
 
@@ -210,9 +193,11 @@ function guardar() {
     cargandoForm.value = false;
     if (resp.ok) {
       cargarBloques();
-      formVisible.value = false;
+      if (typeof cerrarFormularioBloqueEspecial === 'function') {
+        cerrarFormularioBloqueEspecial();
+      }
     } else {
-      mensajeError.value = resp.error || 'Error guardando el bloque';
+      mensajeErrorForm.value = resp.error || 'Error guardando el bloque';
     }
   });
 }
