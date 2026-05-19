@@ -8,14 +8,14 @@
 
     <div v-if="formVisible" class="card mb-4">
       <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h6 class="mb-0">{{ form.value.id ? 'Editar flujo' : 'Crear flujo' }}</h6>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+          <h6 class="mb-0">{{ form.id ? 'Editar flujo' : 'Crear flujo' }}</h6>
           <button class="btn btn-sm btn-outline-secondary" type="button" @click="cancelarFormulario">Cerrar formulario</button>
         </div>
 
         <div class="mb-3">
           <label class="form-label">Nombre</label>
-          <input class="form-control" v-model="form.value.nombre" placeholder="Nombre del flujo" />
+          <input class="form-control" v-model="form.nombre" placeholder="Nombre del flujo" />
         </div>
 
         <div class="d-flex justify-content-end gap-2">
@@ -55,7 +55,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, reactive, onMounted, onUnmounted } from 'vue';
 
 const props = defineProps({
   socket: { type: Object, required: true },
@@ -65,7 +65,7 @@ const flujos = ref([]);
 const mensajeError = ref('');
 const formVisible = ref(false);
 const cargandoForm = ref(false);
-const form = ref({
+const form = reactive({
   id: null,
   nombre: '',
 });
@@ -83,15 +83,11 @@ function cargarFlujos() {
 
 function abrirFormulario(flujo) {
   if (flujo) {
-    form.value = {
-      id: flujo.id,
-      nombre: flujo.nombre,
-    };
+    form.id = flujo.id;
+    form.nombre = flujo.nombre;
   } else {
-    form.value = {
-      id: null,
-      nombre: '',
-    };
+    form.id = null;
+    form.nombre = '';
   }
   mensajeError.value = '';
   formVisible.value = true;
@@ -104,17 +100,17 @@ function cancelarFormulario() {
 
 function guardar() {
   mensajeError.value = '';
-  const nombre = String(form.value.nombre || '').trim();
+  const nombre = String(form.nombre || '').trim();
   if (!nombre) {
     mensajeError.value = 'El nombre es requerido';
     return;
   }
 
   const payload = {
-    id: form.value.id,
+    id: form.id,
     nombre,
   };
-  const accion = form.value.id ? 'agentes_flujos:update' : 'agentes_flujos:create';
+  const accion = form.id ? 'agentes_flujos:update' : 'agentes_flujos:create';
 
   cargandoForm.value = true;
   props.socket.emit(accion, payload, (resp) => {
