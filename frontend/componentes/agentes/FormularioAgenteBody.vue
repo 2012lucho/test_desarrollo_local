@@ -8,9 +8,14 @@
           <label>Conexiones entrantes</label>
           <div v-if="!incomingConnections.length" class="form-text text-muted">No hay conexiones entrantes desde otros nodos.</div>
           <ul v-else class="list-group list-group-flush">
-            <li v-for="(connection, index) in incomingConnections" :key="index" class="list-group-item py-2">
-              <div class="fw-semibold">Desde: {{ connection.fromNodeName }}</div>
-              <div class="small text-muted">Salida: {{ connection.salidaLabel }}</div>
+            <li v-for="(connection, index) in incomingConnections" :key="index" class="list-group-item py-2 d-flex justify-content-between align-items-start">
+              <div>
+                <div class="fw-semibold">Desde: {{ connection.fromNodeName }}</div>
+                <div class="small text-muted">Salida: {{ connection.salidaLabel }}</div>
+              </div>
+              <button type="button" class="btn btn-icon btn-icon-danger" @click="onDeleteConnection(connection.id)" aria-label="Eliminar conexión entrante">
+                🗑️
+              </button>
             </li>
           </ul>
         </div>
@@ -43,9 +48,14 @@
           <label>Conexiones salientes</label>
           <div v-if="!outgoingConnections.length" class="form-text text-muted">No hay conexiones salientes hacia otros nodos.</div>
           <ul v-else class="list-group list-group-flush">
-            <li v-for="(connection, index) in outgoingConnections" :key="index" class="list-group-item py-2">
-              <div class="fw-semibold">Hacia: {{ connection.toNodeName }}</div>
-              <div class="small text-muted">Salida: {{ connection.salidaLabel }}</div>
+            <li v-for="(connection, index) in outgoingConnections" :key="index" class="list-group-item py-2 d-flex justify-content-between align-items-start">
+              <div>
+                <div class="fw-semibold">Hacia: {{ connection.toNodeName }}</div>
+                <div class="small text-muted">Salida: {{ connection.salidaLabel }}</div>
+              </div>
+              <button type="button" class="btn btn-icon btn-icon-danger" @click="onDeleteConnection(connection.id)" aria-label="Eliminar conexión saliente">
+                🗑️
+              </button>
             </li>
           </ul>
         </div>
@@ -55,14 +65,15 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, unref } from 'vue';
 
 const props = defineProps({
   form: { type: Object, required: true },
   mensajeError: { type: [String, Object], default: '' },
   blocks: { type: Array, default: () => [] },
-  incomingConnections: { type: Array, default: () => [] },
-  outgoingConnections: { type: Array, default: () => [] },
+  incomingConnections: { type: [Array, Object], default: () => [] },
+  outgoingConnections: { type: [Array, Object], default: () => [] },
+  onDeleteConnection: { type: Function, default: () => {} },
   isEditing: { type: Boolean, default: false },
 });
 
@@ -95,8 +106,9 @@ const errorText = computed(() => {
   return props.mensajeError || '';
 });
 
-const incomingConnections = computed(() => props.incomingConnections || []);
-const outgoingConnections = computed(() => props.outgoingConnections || []);
+const incomingConnections = computed(() => unref(props.incomingConnections) || []);
+const outgoingConnections = computed(() => unref(props.outgoingConnections) || []);
+const onDeleteConnection = (connectionId) => props.onDeleteConnection(connectionId);
 </script>
 
 <style scoped>
@@ -127,6 +139,20 @@ const outgoingConnections = computed(() => props.outgoingConnections || []);
 .column-salida,
 .column-entrada {
   min-width: 220px;
+}
+
+.btn-icon {
+  border: none;
+  background: transparent;
+  color: #dc3545;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.25rem;
+}
+
+.btn-icon:hover {
+  background: rgba(220, 53, 69, 0.1);
+  border-radius: 0.5rem;
 }
 
 .column-nodo {

@@ -402,6 +402,16 @@ function abrirFormularioAgente(agente = null) {
     });
   }
 
+  function eliminarConexion(connectionId) {
+    socket.emit('agentes_nodo_flujo_coneccion:delete', { id: connectionId }, (resp) => {
+      if (resp.ok) {
+        conexiones.value = conexiones.value.filter((conexion) => conexion.id !== connectionId);
+      } else {
+        mensajeError.value = resp.error || 'Error eliminando conexión';
+      }
+    });
+  }
+
   function abrirModal() {
     cerrar = mostrarModal({
       header: FormularioAgenteHeader,
@@ -412,8 +422,9 @@ function abrirFormularioAgente(agente = null) {
         form,
         mensajeError: mensajeErrorForm,
         blocks: availableBloques.value,
-        incomingConnections: incomingConnections.value,
-        outgoingConnections: outgoingConnections.value,
+        incomingConnections,
+        outgoingConnections,
+        onDeleteConnection: eliminarConexion,
         isEditing,
       },
       footerProps: { cargando: cargandoForm.value, onGuardar: guardar, onCerrar: () => cerrar && cerrar() },
