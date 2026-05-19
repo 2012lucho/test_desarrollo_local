@@ -8,22 +8,22 @@
 
     <div v-if="formVisible" class="card mb-4">
       <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h6 class="mb-0">{{ form.value.id ? 'Editar bloque' : 'Crear bloque' }}</h6>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+          <h6 class="mb-0">{{ form.id ? 'Editar bloque' : 'Crear bloque' }}</h6>
           <button class="btn btn-sm btn-outline-secondary" type="button" @click="cancelarFormulario">Cerrar formulario</button>
         </div>
 
         <div class="mb-3">
           <label class="form-label">Nombre</label>
-          <input class="form-control" v-model="form.value.nombre" placeholder="Nombre del bloque" />
+          <input class="form-control" v-model="form.nombre" placeholder="Nombre del bloque" />
         </div>
         <div class="mb-3">
           <label class="form-label">Descripción</label>
-          <textarea class="form-control" v-model="form.value.descripcion" rows="3" placeholder="Descripción del bloque"></textarea>
+          <textarea class="form-control" v-model="form.descripcion" rows="3" placeholder="Descripción del bloque"></textarea>
         </div>
         <div class="mb-3">
           <label class="form-label">Modelo Config</label>
-          <textarea class="form-control" v-model="form.value.modelo_config" rows="6" placeholder='Ejemplo: {"key": "value"}'></textarea>
+          <textarea class="form-control" v-model="form.modelo_config" rows="6" placeholder='Ejemplo: {"key": "value"}'></textarea>
         </div>
         <div class="d-flex justify-content-end gap-2">
           <button class="btn btn-secondary" type="button" @click="cancelarFormulario">Cancelar</button>
@@ -66,7 +66,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, reactive, onMounted, onUnmounted } from 'vue';
 
 const props = defineProps({
   socket: { type: Object, required: true },
@@ -76,7 +76,7 @@ const bloques = ref([]);
 const mensajeError = ref('');
 const formVisible = ref(false);
 const cargandoForm = ref(false);
-const form = ref({
+const form = reactive({
   id: null,
   nombre: '',
   descripcion: '',
@@ -124,19 +124,15 @@ function cargarBloques() {
 
 function abrirFormulario(bloque) {
   if (bloque) {
-    form.value = {
-      id: bloque.id,
-      nombre: bloque.nombre,
-      descripcion: bloque.descripcion || '',
-      modelo_config: prepareConfigValue(bloque.modelo_config),
-    };
+    form.id = bloque.id;
+    form.nombre = bloque.nombre;
+    form.descripcion = bloque.descripcion || '';
+    form.modelo_config = prepareConfigValue(bloque.modelo_config);
   } else {
-    form.value = {
-      id: null,
-      nombre: '',
-      descripcion: '',
-      modelo_config: '{}',
-    };
+    form.id = null;
+    form.nombre = '';
+    form.descripcion = '';
+    form.modelo_config = '{}';
   }
   mensajeError.value = '';
   formVisible.value = true;
@@ -161,8 +157,8 @@ function validarConfig(configText) {
 
 function guardar() {
   mensajeError.value = '';
-  const nombre = String(form.value.nombre || '').trim();
-  const descripcion = String(form.value.descripcion || '').trim();
+  const nombre = String(form.nombre || '').trim();
+  const descripcion = String(form.descripcion || '').trim();
 
   if (!nombre) {
     mensajeError.value = 'El nombre es requerido';
@@ -171,19 +167,19 @@ function guardar() {
 
   let modelo_config = null;
   try {
-    modelo_config = validarConfig(form.value.modelo_config);
+    modelo_config = validarConfig(form.modelo_config);
   } catch (error) {
     mensajeError.value = error.message;
     return;
   }
 
   const payload = {
-    id: form.value.id,
+    id: form.id,
     nombre,
     descripcion: descripcion || null,
     modelo_config,
   };
-  const accion = form.value.id ? 'agentes_tipo_bloques_especiales:update' : 'agentes_tipo_bloques_especiales:create';
+  const accion = form.id ? 'agentes_tipo_bloques_especiales:update' : 'agentes_tipo_bloques_especiales:create';
 
   cargandoForm.value = true;
   props.socket.emit(accion, payload, (resp) => {
