@@ -66,6 +66,7 @@
           v-for="node in nodes"
           :key="node.id"
           class="node-card"
+          :class="{ 'node-card--initial': nodeIsInitial(node) }"
           :style="nodeStyle(node)"
           @pointerdown="startNodeDrag(node, $event)"
         >
@@ -473,6 +474,14 @@ function nodeHasChatInput(node) {
   if (!bloque) return false;
   const configEntrada = parseConfigValue(bloque.config_entrada);
   return configValueHasChatType(configEntrada);
+}
+
+function nodeIsInitial(node) {
+  const agente = agentesMap.value[node.id];
+  const bloque = agente ? bloquesMap.value[agente.id_tipo_bloque] : null;
+  if (!bloque) return false;
+  const configGeneral = parseConfigValue(bloque.config_general);
+  return configGeneral && typeof configGeneral === 'object' && configGeneral.is_nodo_inicial === true;
 }
 
 function nodeProvidesOutput(node) {
@@ -888,6 +897,15 @@ onUnmounted(() => {
   opacity: 0.45;
   background: #f0f0f0;
   color: #7a8ba9;
+}
+
+.node-card--initial {
+  background: #e7f5ff;
+  border-color: #8aceff;
+}
+
+.node-card--initial .node-header {
+  background: #d7efff;
 }
 
 .icon-chat {

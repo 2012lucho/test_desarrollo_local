@@ -53,6 +53,21 @@
 - id integer pk autoincremental
 - nombre varchar (255) notnull
 
+## ejecucion_flujo
+- id integer pk autoincremental
+- fecha_hora_inicio datetime notnull
+- fecha_hora_fin datetime null
+- id_flujo integer notnull
+
+## registro_ejecucion_flujo
+- id integer pk autoincremental
+- id_flujo integer notnull
+- id_ejecucion integer notnull
+- fecha_hora_ini datetime notnull
+- fecha_hora_fin datetime null
+- data_entrada json null
+- data_salida json null
+
 ## agentes_tipo_bloques_especiales
 - id integer pk autoincremental
 - nombre varchar (255) notnull
