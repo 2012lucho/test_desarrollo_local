@@ -257,6 +257,7 @@ module.exports = (socket, io) => {
     const id_nodo_origen = Number(payload?.id_nodo_origen || 0);
     const id_nodo_destino = Number(payload?.id_nodo_destino || 0);
     const id_flujo = Number(payload?.id_flujo || 0);
+    const name_salida_nodo = payload?.name_salida_nodo ? String(payload.name_salida_nodo).trim() : null;
 
     if (!id_nodo_origen || !id_nodo_destino || !id_flujo) {
       return safeCallback(callback, { ok: false, error: 'Origen, destino y flujo son requeridos' });
@@ -266,7 +267,7 @@ module.exports = (socket, io) => {
     }
 
     try {
-      const [id] = await db('agentes_nodo_flujo_coneccion').insert({ id_nodo_origen, id_nodo_destino, id_flujo });
+      const [id] = await db('agentes_nodo_flujo_coneccion').insert({ id_nodo_origen, id_nodo_destino, id_flujo, name_salida_nodo });
       const conexion = await db('agentes_nodo_flujo_coneccion').where({ id }).first();
       io.emit('agentes_nodo_flujo_coneccion:changed', { action: 'created', conexion });
       safeCallback(callback, { ok: true, data: conexion });

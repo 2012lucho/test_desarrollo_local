@@ -49,6 +49,13 @@
 - id_tipo_bloque integer notnull
 - id_flujo integer notnull
 
+## agentes_nodo_flujo_coneccion
+- id integer pk autoincremental
+- id_nodo_origen integer fk referencias agentes_nodo_flujo(id) notnull
+- id_nodo_destino integer fk referencias agentes_nodo_flujo(id) notnull
+- id_flujo integer fk referencias agentes_flujos(id) notnull
+- name_salida_nodo varchar (255) null
+
 ## agentes_flujos
 - id integer pk autoincremental
 - nombre varchar (255) notnull

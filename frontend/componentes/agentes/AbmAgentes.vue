@@ -102,12 +102,14 @@
             Entrada
           </div>
           <div
+            v-for="(output, outputIndex) in getNodeOutputItems(node)"
+            :key="`${node.id}-output-${outputIndex}`"
             class="handle output-handle"
             :class="{ 'handle-disabled': !nodeProvidesOutput(node) }"
-            @pointerdown.stop.prevent="nodeProvidesOutput(node) && startConnection(node)"
+            @pointerdown.stop.prevent="nodeProvidesOutput(node) && startConnection(node, output, outputIndex)"
             @click.stop
           >
-            Salida
+            <span class="handle-label">{{ output.name || 'Salida' }}</span>
             <span class="handle-dot" />
           </div>
         </div>
@@ -426,8 +428,38 @@ function getNodeLabel(node) {
   return agentesMap.value[node.id]?.nombre || 'Nodo';
 }
 
-function connectorPosition(node, type) {
+function getNodeOutputItems(node) {
+  const agente = agentesMap.value[node.id];
+  const bloque = agente ? bloquesMap.value[agente.id_tipo_bloque] : null;
+  const configSalida = bloque ? parseConfigValue(bloque.config_salida) : null;
+  if (!bloque) {
+    return [{ name: 'Salida' }];
+  }
+  if (configSalida === null) {
+    return [];
+  }
+  if (Array.isArray(configSalida)) {
+    return configSalida.map((item, index) => {
+      const name = item && typeof item === 'object' ? String(item.name || `Salida ${index + 1}`) : `Salida ${index + 1}`;
+      return { ...(item && typeof item === 'object' ? item : {}), name };
+    });
+  }
+  if (typeof configSalida === 'object') {
+    return [{ ...configSalida, name: String(configSalida.name || 'Salida') }];
+  }
+  return [{ name: String(configSalida) }];
+}
+
+function connectorPosition(node, type, outputIndex = 0) {
   const x = node.x + (type === 'output' ? NODE_WIDTH : 0);
+  if (type === 'output') {
+    const outputs = getNodeOutputItems(node);
+    const index = Math.max(0, Math.min(outputIndex, outputs.length - 1));
+    const startY = 52;
+    const spacing = 22;
+    const y = node.y + Math.min(startY + index * spacing, NODE_HEIGHT - 20);
+    return { x, y };
+  }
   const y = node.y + HANDLE_Y;
   return { x, y };
 }
@@ -488,10 +520,7 @@ function nodeProvidesOutput(node) {
   const agente = agentesMap.value[node.id];
   const bloque = agente ? bloquesMap.value[agente.id_tipo_bloque] : null;
   if (!bloque) return true;
-  const configSalida = parseConfigValue(bloque.config_salida);
-  if (configSalida === null) return false;
-  if (Array.isArray(configSalida) && configSalida.length === 0) return false;
-  return true;
+  return getNodeOutputItems(node).length > 0;
 }
 
 function openChatWindow(node) {
@@ -532,12 +561,14 @@ function sendChatMessage() {
 
 const chatInput = ref('');
 
-function startConnection(node) {
+function startConnection(node, output, outputIndex) {
   if (!nodeProvidesOutput(node)) return;
+  const outputLabel = output?.name ? String(output.name) : getNodeLabel(node);
   connectionStart.value = {
     fromId: node.id,
-    fromLabel: getNodeLabel(node),
-    start: connectorPosition(node, 'output'),
+    fromLabel: outputLabel,
+    name_salida_nodo: outputLabel,
+    start: connectorPosition(node, 'output', outputIndex),
   };
 }
 
@@ -546,13 +577,14 @@ function finishConnection(node) {
   if (node.id === connectionStart.value.fromId) return;
   if (!nodeAcceptsInput(node)) return;
   const exists = conexiones.value.some(
-    (con) => con.id_nodo_origen === connectionStart.value.fromId && con.id_nodo_destino === node.id,
+    (con) => con.id_nodo_origen === connectionStart.value.fromId && con.id_nodo_destino === node.id && con.name_salida_nodo === connectionStart.value.name_salida_nodo,
   );
   if (!exists) {
     const payload = {
       id_nodo_origen: connectionStart.value.fromId,
       id_nodo_destino: node.id,
       id_flujo: selectedFlujo.value,
+      name_salida_nodo: connectionStart.value.name_salida_nodo,
     };
     socket.emit('agentes_nodo_flujo_coneccion:create', payload, (resp) => {
       if (resp.ok && resp.data) {
@@ -590,8 +622,18 @@ function onCanvasWheel(event) {
   zoom.value = Math.min(maxZoom, Math.max(minZoom, zoom.value + delta));
 }
 
+function getConnectionOutputIndex(connection) {
+  const node = nodes.value.find((n) => n.id === connection.from);
+  if (!node) return 0;
+  const outputs = getNodeOutputItems(node);
+  const targetName = String(connection.name_salida_nodo || '').trim();
+  const index = outputs.findIndex((output) => String(output.name || '').trim() === targetName);
+  return index >= 0 ? index : 0;
+}
+
 function connectionPath(connection) {
-  const from = connectorPosition(nodes.value.find((n) => n.id === connection.from), 'output');
+  const fromNode = nodes.value.find((n) => n.id === connection.from);
+  const from = connectorPosition(fromNode, 'output', getConnectionOutputIndex(connection));
   const to = connectorPosition(nodes.value.find((n) => n.id === connection.to), 'input');
   if (!from || !to) return '';
   const midX = from.x + (to.x - from.x) / 2;
