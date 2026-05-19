@@ -1,11 +1,16 @@
 <template>
   <div class="agentes-page">
     <div class="toolbar">
-      <button class="btn" @click="abrirNuevoAgente">+ Nuevo nodo</button>
+      <select v-model.number="selectedFlujo" class="form-select flujo-selector">
+        <option value="">Selecciona un flujo</option>
+        <option v-for="flujo in flujos" :key="flujo.id" :value="flujo.id">{{ flujo.nombre }}</option>
+      </select>
+      <button class="btn btn-secondary" @click="abrirGestionFlujos">Gestionar Flujos</button>
+      <button class="btn" :disabled="!hasSelectedFlujo" @click="abrirNuevoAgente">+ Nuevo nodo</button>
       <button class="btn btn-secondary" @click="abrirGestionBloques">Gestionar Bloques</button>
-      <button class="btn" @click="zoomOut">- Alejar</button>
-      <button class="btn" @click="zoomReset">100%</button>
-      <button class="btn" @click="zoomIn">+ Acercar</button>
+      <button class="btn" :disabled="!hasSelectedFlujo" @click="zoomOut">- Alejar</button>
+      <button class="btn" :disabled="!hasSelectedFlujo" @click="zoomReset">100%</button>
+      <button class="btn" :disabled="!hasSelectedFlujo" @click="zoomIn">+ Acercar</button>
       <div class="toolbar-status">
         <span>Zoom: <strong>{{ Math.round(zoom * 100) }}%</strong></span>
         <span v-if="connectionStart" class="toolbar-connection-status">
@@ -20,6 +25,7 @@
 
     <div
       class="canvas-area"
+      :class="{ 'canvas-disabled': !hasSelectedFlujo }"
       ref="canvasRef"
       @pointermove="onCanvasPointerMove"
       @pointerup="endPointerActions"
@@ -53,7 +59,7 @@
         <div class="canvas-grid" />
 
         <div v-if="!nodes.length" class="canvas-empty">
-          Sin nodos de flujo registrados. Usa + Nuevo nodo para crear uno.
+          {{ hasSelectedFlujo ? 'Sin nodos de flujo registrados. Usa + Nuevo nodo para crear uno.' : 'Selecciona un flujo para habilitar el canvas.' }}
         </div>
 
         <div
@@ -91,7 +97,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue';
 import { io } from 'socket.io-client';
 import { useModal } from '../../composables/useModal.js';
 import FormularioAgenteHeader from './FormularioAgenteHeader.vue';
@@ -99,15 +105,20 @@ import FormularioAgenteBody from './FormularioAgenteBody.vue';
 import FormularioAgenteFooter from './FormularioAgenteFooter.vue';
 import GestionBloquesHeader from './GestionBloquesHeader.vue';
 import GestionBloquesEspeciales from './GestionBloquesEspeciales.vue';
+import GestionFlujosHeader from './GestionFlujosHeader.vue';
+import GestionFlujos from './GestionFlujos.vue';
 
 const socket = io(import.meta.env.VITE_API_URL);
 const { mostrarModal } = useModal();
 const canvasRef = ref(null);
 const agentes = ref([]);
+const flujos = ref([]);
+const selectedFlujo = ref(null);
 const availableBloques = ref([]);
 const mensajeError = ref('');
 const nodes = ref([]);
 const agentesMap = computed(() => Object.fromEntries(agentes.value.map((agente) => [agente.id, agente])));
+const hasSelectedFlujo = computed(() => selectedFlujo.value !== null && selectedFlujo.value !== undefined && selectedFlujo.value !== '');
 const conexiones = ref([]);
 const connectionStart = ref(null);
 const draggingNode = ref(null);
@@ -141,7 +152,17 @@ function updateCanvasRect() {
 }
 
 function abrirNuevoAgente() {
+  if (!hasSelectedFlujo.value) return;
   abrirFormularioAgente(null);
+}
+
+function abrirGestionFlujos() {
+  mostrarModal({
+    header: GestionFlujosHeader,
+    body: GestionFlujos,
+    bodyProps: { socket },
+    fullscreen: false,
+  });
 }
 
 function abrirGestionBloques() {
@@ -181,7 +202,13 @@ function syncNodesWithAgentes() {
 }
 
 function cargarAgentes() {
-  socket.emit('agentes_nodo_flujo:list', null, (resp) => {
+  if (!hasSelectedFlujo.value) {
+    agentes.value = [];
+    nodes.value = [];
+    return;
+  }
+
+  socket.emit('agentes_nodo_flujo:list', { id_flujo: selectedFlujo.value }, (resp) => {
     if (resp.ok) {
       agentes.value = resp.data || [];
       syncNodesWithAgentes();
@@ -202,12 +229,28 @@ function loadBloquesEspeciales() {
   });
 }
 
+function cargarFlujos() {
+  socket.emit('agentes_flujos:list', null, (resp) => {
+    if (resp.ok) {
+      flujos.value = resp.data ?? [];
+    } else {
+      flujos.value = [];
+      mensajeError.value = resp.error || 'Error cargando flujos';
+    }
+  });
+}
+
+watch(selectedFlujo, () => {
+  cargarAgentes();
+});
+
 function abrirFormularioAgente(agente = null) {
   const form = ref({
     id: agente?.id ?? null,
     nombre: agente?.nombre ?? '',
     id_tipo_bloque: agente?.id_tipo_bloque ?? '',
     id_agente: agente?.id_agente ?? null,
+    id_flujo: agente?.id_flujo ?? selectedFlujo.value ?? null,
   });
   const originalId = agente?.id ?? null;
   const isEditing = !!originalId;
@@ -235,6 +278,7 @@ function abrirFormularioAgente(agente = null) {
       nombre,
       id_tipo_bloque: idTipoBloque,
       id_agente: form.value.id_agente || null,
+      id_flujo: Number(form.value.id_flujo || selectedFlujo.value || 0),
     };
     const accion = isEditing ? 'agentes_nodo_flujo:update' : 'agentes_nodo_flujo:create';
 
@@ -419,16 +463,19 @@ async function endPointerActions() {
 onMounted(() => {
   updateCanvasRect();
   cargarAgentes();
+  cargarFlujos();
   loadBloquesEspeciales();
   window.addEventListener('resize', updateCanvasRect);
   socket.on('agentes_nodo_flujo:changed', cargarAgentes);
   socket.on('agentes_tipo_bloques_especiales:changed', loadBloquesEspeciales);
+  socket.on('agentes_flujos:changed', cargarFlujos);
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', updateCanvasRect);
   socket.off('agentes_nodo_flujo:changed', cargarAgentes);
   socket.off('agentes_tipo_bloques_especiales:changed', loadBloquesEspeciales);
+  socket.off('agentes_flujos:changed', cargarFlujos);
   socket.disconnect();
 });
 </script>
@@ -444,6 +491,19 @@ onUnmounted(() => {
   align-items: center;
   gap: 1rem;
   margin-bottom: 1rem;
+}
+
+.flujo-selector {
+  min-width: 220px;
+  max-width: 300px;
+  border: 1px solid #ced4da;
+  border-radius: 0.6rem;
+  padding: 0.45rem 0.65rem;
+}
+
+.canvas-disabled {
+  opacity: 0.65;
+  pointer-events: none;
 }
 
 .btn {

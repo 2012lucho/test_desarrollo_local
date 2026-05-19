@@ -114,9 +114,104 @@ module.exports = (socket, io) => {
     }
   });
 
-  socket.on('agentes_nodo_flujo:list', async (_payload, callback) => {
+  socket.on('agentes_flujos:list', async (_payload, callback) => {
     try {
-      const nodos = await db('agentes_nodo_flujo').select('*').orderBy('id', 'asc');
+      const flujos = await db('agentes_flujos').select('*').orderBy('id', 'asc');
+      safeCallback(callback, { ok: true, data: flujos });
+    } catch (error) {
+      console.error('agentes_flujos:list error', error);
+      safeCallback(callback, { ok: false, error: 'Error listando flujos' });
+    }
+  });
+
+  socket.on('agentes_flujos:get', async (payload, callback) => {
+    const id = Number(payload?.id || payload || 0);
+    if (!id) {
+      return safeCallback(callback, { ok: false, error: 'Id inválido para obtener flujo' });
+    }
+
+    try {
+      const flujo = await db('agentes_flujos').where({ id }).first();
+      if (!flujo) {
+        return safeCallback(callback, { ok: false, error: 'Flujo no encontrado', status: 404 });
+      }
+      safeCallback(callback, { ok: true, data: flujo });
+    } catch (error) {
+      console.error('agentes_flujos:get error', error);
+      safeCallback(callback, { ok: false, error: 'Error obteniendo flujo' });
+    }
+  });
+
+  socket.on('agentes_flujos:create', async (payload, callback) => {
+    const nombre = String(payload?.nombre || '').trim();
+    if (!nombre) {
+      return safeCallback(callback, { ok: false, error: 'El nombre es requerido' });
+    }
+
+    try {
+      const [id] = await db('agentes_flujos').insert({ nombre });
+      const flujo = await db('agentes_flujos').where({ id }).first();
+      io.emit('agentes_flujos:changed', { action: 'created', flujo });
+      safeCallback(callback, { ok: true, data: flujo });
+    } catch (error) {
+      console.error('agentes_flujos:create error', error);
+      safeCallback(callback, { ok: false, error: 'Error creando flujo' });
+    }
+  });
+
+  socket.on('agentes_flujos:update', async (payload, callback) => {
+    const id = Number(payload?.id || 0);
+    const nombre = String(payload?.nombre || '').trim();
+
+    if (!id) {
+      return safeCallback(callback, { ok: false, error: 'Id inválido para actualizar flujo' });
+    }
+    if (!nombre) {
+      return safeCallback(callback, { ok: false, error: 'El nombre es requerido' });
+    }
+
+    try {
+      const affected = await db('agentes_flujos').where({ id }).update({ nombre });
+      if (!affected) {
+        return safeCallback(callback, { ok: false, error: 'Flujo no encontrado', status: 404 });
+      }
+      const flujo = await db('agentes_flujos').where({ id }).first();
+      io.emit('agentes_flujos:changed', { action: 'updated', flujo });
+      safeCallback(callback, { ok: true, data: flujo });
+    } catch (error) {
+      console.error('agentes_flujos:update error', error);
+      safeCallback(callback, { ok: false, error: 'Error actualizando flujo' });
+    }
+  });
+
+  socket.on('agentes_flujos:delete', async (payload, callback) => {
+    const id = Number(payload?.id || payload || 0);
+    if (!id) {
+      return safeCallback(callback, { ok: false, error: 'Id inválido para eliminar flujo' });
+    }
+
+    try {
+      const flujo = await db('agentes_flujos').where({ id }).first();
+      if (!flujo) {
+        return safeCallback(callback, { ok: false, error: 'Flujo no encontrado', status: 404 });
+      }
+      await db('agentes_flujos').where({ id }).delete();
+      io.emit('agentes_flujos:changed', { action: 'deleted', flujo });
+      safeCallback(callback, { ok: true, data: { id } });
+    } catch (error) {
+      console.error('agentes_flujos:delete error', error);
+      safeCallback(callback, { ok: false, error: 'Error eliminando flujo' });
+    }
+  });
+
+  socket.on('agentes_nodo_flujo:list', async (payload, callback) => {
+    try {
+      const query = db('agentes_nodo_flujo').select('*').orderBy('id', 'asc');
+      const id_flujo = Number(payload?.id_flujo || 0);
+      if (id_flujo) {
+        query.where({ id_flujo });
+      }
+      const nodos = await query;
       safeCallback(callback, { ok: true, data: nodos });
     } catch (error) {
       console.error('agentes_nodo_flujo:list error', error);
@@ -142,7 +237,7 @@ module.exports = (socket, io) => {
     }
   });
 
-  socket.on('agentes:create', async (payload, callback) => {
+  socket.on('agentes:get', async (payload, callback) => {
     const id = String(payload?.id || payload || '').trim();
     if (!id) {
       return safeCallback(callback, { ok: false, error: 'Id inválido para obtener agente' });
@@ -264,6 +359,7 @@ module.exports = (socket, io) => {
     const nombre = String(payload?.nombre || '').trim();
     const id_tipo_bloque = Number(payload?.id_tipo_bloque || 0);
     const id_agente = payload?.id_agente ? String(payload.id_agente).trim() : null;
+    const id_flujo = Number(payload?.id_flujo || 0);
 
     if (!nombre) {
       return safeCallback(callback, { ok: false, error: 'El nombre es requerido' });
@@ -271,9 +367,12 @@ module.exports = (socket, io) => {
     if (!id_tipo_bloque) {
       return safeCallback(callback, { ok: false, error: 'El tipo de bloque es requerido' });
     }
+    if (!id_flujo) {
+      return safeCallback(callback, { ok: false, error: 'El flujo es requerido' });
+    }
 
     try {
-      const [id] = await db('agentes_nodo_flujo').insert({ nombre, id_tipo_bloque, id_agente, pos_canvas_x: null, pos_canvas_y: null });
+      const [id] = await db('agentes_nodo_flujo').insert({ nombre, id_tipo_bloque, id_agente, id_flujo, pos_canvas_x: null, pos_canvas_y: null });
       const nodo = await db('agentes_nodo_flujo').where({ id }).first();
       io.emit('agentes_nodo_flujo:changed', { action: 'created', nodo });
       safeCallback(callback, { ok: true, data: nodo });
@@ -288,6 +387,7 @@ module.exports = (socket, io) => {
     const nombre = String(payload?.nombre || '').trim();
     const id_tipo_bloque = Number(payload?.id_tipo_bloque || 0);
     const id_agente = payload?.id_agente ? String(payload.id_agente).trim() : null;
+    const id_flujo = Number(payload?.id_flujo || 0);
 
     if (!id) {
       return safeCallback(callback, { ok: false, error: 'Id inválido para actualizar nodo de flujo' });
@@ -298,9 +398,12 @@ module.exports = (socket, io) => {
     if (!id_tipo_bloque) {
       return safeCallback(callback, { ok: false, error: 'El tipo de bloque es requerido' });
     }
+    if (!id_flujo) {
+      return safeCallback(callback, { ok: false, error: 'El flujo es requerido' });
+    }
 
     try {
-      const affected = await db('agentes_nodo_flujo').where({ id }).update({ nombre, id_tipo_bloque, id_agente });
+      const affected = await db('agentes_nodo_flujo').where({ id }).update({ nombre, id_tipo_bloque, id_agente, id_flujo });
       if (!affected) {
         return safeCallback(callback, { ok: false, error: 'Nodo de flujo no encontrado', status: 404 });
       }

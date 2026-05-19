@@ -47,6 +47,11 @@
 - pos_canvas_y integer null
 - id_agente varchar (255) null
 - id_tipo_bloque integer notnull
+- id_flujo integer notnull
+
+## agentes_flujos
+- id integer pk autoincremental
+- nombre varchar (255) notnull
 
 ## agentes_tipo_bloques_especiales
 - id integer pk autoincremental
