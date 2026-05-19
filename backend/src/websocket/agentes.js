@@ -1,5 +1,20 @@
 const db = require('../db');
 
+function normalizeJsonValue(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed === '' ? null : trimmed;
+  }
+  try {
+    return JSON.stringify(value);
+  } catch (error) {
+    return null;
+  }
+}
+
 module.exports = (socket, io) => {
   const safeCallback = (callback, payload) => {
     if (typeof callback === 'function') {
@@ -50,9 +65,9 @@ module.exports = (socket, io) => {
   socket.on('agentes_tipo_bloques_especiales:create', async (payload, callback) => {
     const nombre = String(payload?.nombre || '').trim();
     const descripcion = String(payload?.descripcion || '').trim() || null;
-    const config_entrada = payload?.config_entrada ?? null;
-    const config_general = payload?.config_general ?? null;
-    const config_salida = payload?.config_salida ?? null;
+    const config_entrada = normalizeJsonValue(payload?.config_entrada);
+    const config_general = normalizeJsonValue(payload?.config_general);
+    const config_salida = normalizeJsonValue(payload?.config_salida);
 
     if (!nombre) {
       return safeCallback(callback, { ok: false, error: 'El nombre es requerido' });
@@ -73,9 +88,9 @@ module.exports = (socket, io) => {
     const id = Number(payload?.id || 0);
     const nombre = String(payload?.nombre || '').trim();
     const descripcion = String(payload?.descripcion || '').trim() || null;
-    const config_entrada = payload?.config_entrada ?? null;
-    const config_general = payload?.config_general ?? null;
-    const config_salida = payload?.config_salida ?? null;
+    const config_entrada = normalizeJsonValue(payload?.config_entrada);
+    const config_general = normalizeJsonValue(payload?.config_general);
+    const config_salida = normalizeJsonValue(payload?.config_salida);
 
     if (!id) {
       return safeCallback(callback, { ok: false, error: 'Id inválido para actualizar tipo de bloque especial' });
