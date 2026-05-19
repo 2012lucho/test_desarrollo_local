@@ -339,6 +339,34 @@ function abrirFormularioAgente(agente = null) {
   const cargandoForm = ref(false);
   let cerrar = null;
 
+  const incomingConnections = computed(() => {
+    if (!originalId) return [];
+    return conexiones.value
+      .filter((conexion) => conexion.id_nodo_destino === originalId)
+      .map((conexion) => {
+        const fromNode = agentesMap.value[conexion.id_nodo_origen];
+        return {
+          ...conexion,
+          fromNodeName: fromNode?.nombre ?? `Nodo ${conexion.id_nodo_origen}`,
+          salidaLabel: String(conexion.name_salida_nodo || 'Salida'),
+        };
+      });
+  });
+
+  const outgoingConnections = computed(() => {
+    if (!originalId) return [];
+    return conexiones.value
+      .filter((conexion) => conexion.id_nodo_origen === originalId)
+      .map((conexion) => {
+        const toNode = agentesMap.value[conexion.id_nodo_destino];
+        return {
+          ...conexion,
+          toNodeName: toNode?.nombre ?? `Nodo ${conexion.id_nodo_destino}`,
+          salidaLabel: String(conexion.name_salida_nodo || 'Salida'),
+        };
+      });
+  });
+
   function guardar() {
     mensajeErrorForm.value = '';
     const nombre = String(form.value.nombre || '').trim();
@@ -380,7 +408,14 @@ function abrirFormularioAgente(agente = null) {
       body: FormularioAgenteBody,
       footer: FormularioAgenteFooter,
       headerProps: { isEditing },
-      bodyProps: { form, mensajeError: mensajeErrorForm, blocks: availableBloques.value, isEditing },
+      bodyProps: {
+        form,
+        mensajeError: mensajeErrorForm,
+        blocks: availableBloques.value,
+        incomingConnections: incomingConnections.value,
+        outgoingConnections: outgoingConnections.value,
+        isEditing,
+      },
       footerProps: { cargando: cargandoForm.value, onGuardar: guardar, onCerrar: () => cerrar && cerrar() },
       fullscreen: false,
     });

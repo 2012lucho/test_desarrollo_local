@@ -1,23 +1,54 @@
 <template>
   <div class="agente-form-body">
     <div v-if="errorText" class="alert alert-danger py-1 mb-3">{{ errorText }}</div>
-    <div class="form-grid">
-      <div v-if="isEditing" class="form-group mb-3">
-        <label>ID</label>
-        <input :value="id" class="form-control" disabled />
+    <div class="form-grid three-columns">
+      <div class="column column-entrada">
+        <h6 class="section-title">Entrada</h6>
+        <div class="form-group mb-3">
+          <label>Conexiones entrantes</label>
+          <div v-if="!incomingConnections.length" class="form-text text-muted">No hay conexiones entrantes desde otros nodos.</div>
+          <ul v-else class="list-group list-group-flush">
+            <li v-for="(connection, index) in incomingConnections" :key="index" class="list-group-item py-2">
+              <div class="fw-semibold">Desde: {{ connection.fromNodeName }}</div>
+              <div class="small text-muted">Salida: {{ connection.salidaLabel }}</div>
+            </li>
+          </ul>
+        </div>
       </div>
-      <div class="form-group mb-3">
-        <label>Nombre</label>
-        <input v-model="nombre" class="form-control" placeholder="Nombre del nodo" />
+
+      <div class="column column-nodo">
+        <h6 class="section-title">Nodo</h6>
+        <div v-if="isEditing" class="form-group mb-3">
+          <label>ID</label>
+          <input :value="id" class="form-control" disabled />
+        </div>
+        <div class="form-group mb-3">
+          <label>Nombre</label>
+          <input v-model="nombre" class="form-control" placeholder="Nombre del nodo" />
+        </div>
+        <div class="form-group mb-3">
+          <label>Tipo de bloque</label>
+          <select v-model.number="idTipoBloque" class="form-select">
+            <option value="" disabled>{{ blocks.length ? 'Selecciona un tipo de bloque' : 'No hay tipos disponibles' }}</option>
+            <option v-for="block in blocks" :key="block.id" :value="block.id">
+              {{ block.nombre }}
+            </option>
+          </select>
+        </div>
       </div>
-      <div class="form-group mb-3">
-        <label>Tipo de bloque</label>
-        <select v-model.number="idTipoBloque" class="form-select">
-          <option value="" disabled>{{ blocks.length ? 'Selecciona un tipo de bloque' : 'No hay tipos disponibles' }}</option>
-          <option v-for="block in blocks" :key="block.id" :value="block.id">
-            {{ block.nombre }}
-          </option>
-        </select>
+
+      <div class="column column-salida">
+        <h6 class="section-title">Salida</h6>
+        <div class="form-group mb-3">
+          <label>Conexiones salientes</label>
+          <div v-if="!outgoingConnections.length" class="form-text text-muted">No hay conexiones salientes hacia otros nodos.</div>
+          <ul v-else class="list-group list-group-flush">
+            <li v-for="(connection, index) in outgoingConnections" :key="index" class="list-group-item py-2">
+              <div class="fw-semibold">Hacia: {{ connection.toNodeName }}</div>
+              <div class="small text-muted">Salida: {{ connection.salidaLabel }}</div>
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
   </div>
@@ -30,6 +61,8 @@ const props = defineProps({
   form: { type: Object, required: true },
   mensajeError: { type: [String, Object], default: '' },
   blocks: { type: Array, default: () => [] },
+  incomingConnections: { type: Array, default: () => [] },
+  outgoingConnections: { type: Array, default: () => [] },
   isEditing: { type: Boolean, default: false },
 });
 
@@ -61,6 +94,9 @@ const errorText = computed(() => {
   }
   return props.mensajeError || '';
 });
+
+const incomingConnections = computed(() => props.incomingConnections || []);
+const outgoingConnections = computed(() => props.outgoingConnections || []);
 </script>
 
 <style scoped>
@@ -70,8 +106,31 @@ const errorText = computed(() => {
 
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
+}
+
+.section-title {
+  margin-bottom: 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #2c3e50;
+}
+
+.column {
+  background: #f8fbff;
+  border: 1px solid #dde6f2;
+  border-radius: 0.85rem;
+  padding: 1rem;
+}
+
+.column-salida,
+.column-entrada {
+  min-width: 220px;
+}
+
+.column-nodo {
+  min-width: 260px;
 }
 
 textarea.form-control {
