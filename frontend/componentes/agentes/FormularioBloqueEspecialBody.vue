@@ -11,16 +11,28 @@
         <textarea v-model="descripcion" class="form-control" rows="3" placeholder="Descripción del bloque"></textarea>
       </div>
       <div class="form-group mb-3">
-        <label>Config Entrada</label>
-        <textarea v-model="configEntrada" class="form-control" rows="4" placeholder='Ejemplo: {"key": "value"}'></textarea>
+        <JsonEditorField
+          v-model="configEntrada"
+          label="Config Entrada"
+          :rows="10"
+          placeholder='Ejemplo: {"key": "value"}'
+        />
       </div>
       <div class="form-group mb-3">
-        <label>Config General</label>
-        <textarea v-model="configGeneral" class="form-control" rows="4" placeholder='Ejemplo: {"key": "value"}'></textarea>
+        <JsonEditorField
+          v-model="configGeneral"
+          label="Config General"
+          :rows="10"
+          placeholder='Ejemplo: {"key": "value"}'
+        />
       </div>
       <div class="form-group mb-3">
-        <label>Config Salida</label>
-        <textarea v-model="configSalida" class="form-control" rows="4" placeholder='Ejemplo: {"key": "value"}'></textarea>
+        <JsonEditorField
+          v-model="configSalida"
+          label="Config Salida"
+          :rows="10"
+          placeholder='Ejemplo: {"key": "value"}'
+        />
       </div>
     </div>
   </div>
@@ -28,6 +40,7 @@
 
 <script setup>
 import { computed } from 'vue';
+import JsonEditorField from './JsonEditorField.vue';
 
 const props = defineProps({
   form: { type: Object, required: true },
