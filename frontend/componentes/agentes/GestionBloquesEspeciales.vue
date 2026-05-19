@@ -22,8 +22,16 @@
           <textarea class="form-control" v-model="form.descripcion" rows="3" placeholder="Descripción del bloque"></textarea>
         </div>
         <div class="mb-3">
-          <label class="form-label">Modelo Config</label>
-          <textarea class="form-control" v-model="form.modelo_config" rows="6" placeholder='Ejemplo: {"key": "value"}'></textarea>
+          <label class="form-label">Config Entrada</label>
+          <textarea class="form-control" v-model="form.config_entrada" rows="4" placeholder='Ejemplo: {"key": "value"}'></textarea>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Config General</label>
+          <textarea class="form-control" v-model="form.config_general" rows="4" placeholder='Ejemplo: {"key": "value"}'></textarea>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Config Salida</label>
+          <textarea class="form-control" v-model="form.config_salida" rows="4" placeholder='Ejemplo: {"key": "value"}'></textarea>
         </div>
         <div class="d-flex justify-content-end gap-2">
           <button class="btn btn-secondary" type="button" @click="cancelarFormulario">Cancelar</button>
@@ -40,7 +48,9 @@
               <th>ID</th>
               <th>Nombre</th>
               <th>Descripción</th>
-              <th>Modelo Config</th>
+              <th>Config Entrada</th>
+              <th>Config General</th>
+              <th>Config Salida</th>
               <th></th>
             </tr>
           </thead>
@@ -52,7 +62,9 @@
               <td>{{ bloque.id }}</td>
               <td>{{ bloque.nombre }}</td>
               <td>{{ bloque.descripcion || '-' }}</td>
-              <td><pre class="config-preview">{{ renderConfig(bloque.modelo_config) }}</pre></td>
+              <td><pre class="config-preview">{{ renderConfig(bloque.config_entrada) }}</pre></td>
+              <td><pre class="config-preview">{{ renderConfig(bloque.config_general) }}</pre></td>
+              <td><pre class="config-preview">{{ renderConfig(bloque.config_salida) }}</pre></td>
               <td class="text-end">
                 <button class="btn btn-sm btn-outline-primary me-1" type="button" @click="abrirFormulario(bloque)">Editar</button>
                 <button class="btn btn-sm btn-outline-danger" type="button" @click="eliminarBloque(bloque.id)">Eliminar</button>
@@ -80,7 +92,9 @@ const form = reactive({
   id: null,
   nombre: '',
   descripcion: '',
-  modelo_config: '{}',
+  config_entrada: '{}',
+  config_general: '{}',
+  config_salida: '{}',
 });
 
 function prepareConfigValue(value) {
@@ -127,12 +141,16 @@ function abrirFormulario(bloque) {
     form.id = bloque.id;
     form.nombre = bloque.nombre;
     form.descripcion = bloque.descripcion || '';
-    form.modelo_config = prepareConfigValue(bloque.modelo_config);
+    form.config_entrada = prepareConfigValue(bloque.config_entrada);
+    form.config_general = prepareConfigValue(bloque.config_general);
+    form.config_salida = prepareConfigValue(bloque.config_salida);
   } else {
     form.id = null;
     form.nombre = '';
     form.descripcion = '';
-    form.modelo_config = '{}';
+    form.config_entrada = '{}';
+    form.config_general = '{}';
+    form.config_salida = '{}';
   }
   mensajeError.value = '';
   formVisible.value = true;
@@ -165,9 +183,13 @@ function guardar() {
     return;
   }
 
-  let modelo_config = null;
+  let config_entrada = null;
+  let config_general = null;
+  let config_salida = null;
   try {
-    modelo_config = validarConfig(form.modelo_config);
+    config_entrada = validarConfig(form.config_entrada);
+    config_general = validarConfig(form.config_general);
+    config_salida = validarConfig(form.config_salida);
   } catch (error) {
     mensajeError.value = error.message;
     return;
@@ -177,7 +199,9 @@ function guardar() {
     id: form.id,
     nombre,
     descripcion: descripcion || null,
-    modelo_config,
+    config_entrada,
+    config_general,
+    config_salida,
   };
   const accion = form.id ? 'agentes_tipo_bloques_especiales:update' : 'agentes_tipo_bloques_especiales:create';
 

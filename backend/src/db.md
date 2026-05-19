@@ -57,7 +57,9 @@
 - id integer pk autoincremental
 - nombre varchar (255) notnull
 - descripcion text null
-- modelo_config json null
+- config_entrada json null
+- config_general json null
+- config_salida json null
 
 ## tecnologias
 - id integer pk autoincremental

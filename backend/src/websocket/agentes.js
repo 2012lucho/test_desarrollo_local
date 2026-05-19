@@ -50,14 +50,16 @@ module.exports = (socket, io) => {
   socket.on('agentes_tipo_bloques_especiales:create', async (payload, callback) => {
     const nombre = String(payload?.nombre || '').trim();
     const descripcion = String(payload?.descripcion || '').trim() || null;
-    const modelo_config = payload?.modelo_config ?? null;
+    const config_entrada = payload?.config_entrada ?? null;
+    const config_general = payload?.config_general ?? null;
+    const config_salida = payload?.config_salida ?? null;
 
     if (!nombre) {
       return safeCallback(callback, { ok: false, error: 'El nombre es requerido' });
     }
 
     try {
-      const [id] = await db('agentes_tipo_bloques_especiales').insert({ nombre, descripcion, modelo_config });
+      const [id] = await db('agentes_tipo_bloques_especiales').insert({ nombre, descripcion, config_entrada, config_general, config_salida });
       const tipo = await db('agentes_tipo_bloques_especiales').where({ id }).first();
       io.emit('agentes_tipo_bloques_especiales:changed', { action: 'created', tipo });
       safeCallback(callback, { ok: true, data: tipo });
@@ -71,7 +73,9 @@ module.exports = (socket, io) => {
     const id = Number(payload?.id || 0);
     const nombre = String(payload?.nombre || '').trim();
     const descripcion = String(payload?.descripcion || '').trim() || null;
-    const modelo_config = payload?.modelo_config ?? null;
+    const config_entrada = payload?.config_entrada ?? null;
+    const config_general = payload?.config_general ?? null;
+    const config_salida = payload?.config_salida ?? null;
 
     if (!id) {
       return safeCallback(callback, { ok: false, error: 'Id inválido para actualizar tipo de bloque especial' });
@@ -81,7 +85,7 @@ module.exports = (socket, io) => {
     }
 
     try {
-      const affected = await db('agentes_tipo_bloques_especiales').where({ id }).update({ nombre, descripcion, modelo_config });
+      const affected = await db('agentes_tipo_bloques_especiales').where({ id }).update({ nombre, descripcion, config_entrada, config_general, config_salida });
       if (!affected) {
         return safeCallback(callback, { ok: false, error: 'Tipo de bloque especial no encontrado', status: 404 });
       }

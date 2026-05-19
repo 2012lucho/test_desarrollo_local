@@ -4,27 +4,37 @@ exports.seed = async function (knex) {
     {
       nombre: 'IF',
       descripcion: '',
-      modelo_config: {}
+      config_entrada: {},
+      config_general: {},
+      config_salida: {}
     },
     {
       nombre: 'SWITCH',
       descripcion: '',
-      modelo_config: {}
+      config_entrada: {},
+      config_general: {},
+      config_salida: {}
     },
     {
       nombre: 'GET_DIRECTORIOS',
       descripcion: 'Obtencion de directorios',
-      modelo_config: {}
+      config_entrada: {},
+      config_general: {},
+      config_salida: {}
     },
     {
       nombre: 'CHAT_OUT',
       descripcion: 'Salida de texto que imprime mensaje en chat y guarda registro en base de datos',
-      modelo_config: {}
+      config_entrada: {},
+      config_general: {},
+      config_salida: {}
     },
     {
       nombre: 'CHAT_IN',
       descripcion: 'Entrada de texto que recibe mensaje del chat y guarda registro en base de datos',
-      modelo_config: {}
+      config_entrada: {},
+      config_general: {},
+      config_salida: {}
     }
   ]);
 };
