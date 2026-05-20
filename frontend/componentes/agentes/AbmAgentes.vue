@@ -334,6 +334,7 @@ function abrirFormularioAgente(agente = null) {
     id_tipo_bloque: agente?.id_tipo_bloque ?? '',
     id_agente: agente?.id_agente ?? null,
     id_flujo: agente?.id_flujo ?? selectedFlujo.value ?? null,
+    config: parseConfigValue(agente?.config) || {},
   });
   const originalId = agente?.id ?? null;
   const isEditing = !!originalId;
@@ -390,6 +391,7 @@ function abrirFormularioAgente(agente = null) {
       id_tipo_bloque: idTipoBloque,
       id_agente: form.value.id_agente || null,
       id_flujo: Number(form.value.id_flujo || selectedFlujo.value || 0),
+      config: form.value.config || {},
     };
     const accion = isEditing ? 'agentes_nodo_flujo:update' : 'agentes_nodo_flujo:create';
 
@@ -427,6 +429,7 @@ function abrirFormularioAgente(agente = null) {
         incomingConnections,
         outgoingConnections,
         onDeleteConnection: eliminarConexion,
+        socket,
         isEditing,
       },
       footerProps: { cargando: cargandoForm.value, onGuardar: guardar, onCerrar: () => cerrar && cerrar() },

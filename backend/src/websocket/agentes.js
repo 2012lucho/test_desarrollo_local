@@ -497,6 +497,7 @@ module.exports = (socket, io) => {
     const id_tipo_bloque = Number(payload?.id_tipo_bloque || 0);
     const id_agente = payload?.id_agente ? String(payload.id_agente).trim() : null;
     const id_flujo = Number(payload?.id_flujo || 0);
+    const config = normalizeJsonValue(payload?.config);
 
     if (!nombre) {
       return safeCallback(callback, { ok: false, error: 'El nombre es requerido' });
@@ -509,7 +510,7 @@ module.exports = (socket, io) => {
     }
 
     try {
-      const [id] = await db('agentes_nodo_flujo').insert({ nombre, id_tipo_bloque, id_agente, id_flujo, pos_canvas_x: null, pos_canvas_y: null });
+      const [id] = await db('agentes_nodo_flujo').insert({ nombre, id_tipo_bloque, id_agente, id_flujo, pos_canvas_x: null, pos_canvas_y: null, config });
       const nodo = await db('agentes_nodo_flujo').where({ id }).first();
       io.emit('agentes_nodo_flujo:changed', { action: 'created', nodo });
       safeCallback(callback, { ok: true, data: nodo });
@@ -525,6 +526,7 @@ module.exports = (socket, io) => {
     const id_tipo_bloque = Number(payload?.id_tipo_bloque || 0);
     const id_agente = payload?.id_agente ? String(payload.id_agente).trim() : null;
     const id_flujo = Number(payload?.id_flujo || 0);
+    const config = normalizeJsonValue(payload?.config);
 
     if (!id) {
       return safeCallback(callback, { ok: false, error: 'Id inválido para actualizar nodo de flujo' });
@@ -540,7 +542,7 @@ module.exports = (socket, io) => {
     }
 
     try {
-      const affected = await db('agentes_nodo_flujo').where({ id }).update({ nombre, id_tipo_bloque, id_agente, id_flujo });
+      const affected = await db('agentes_nodo_flujo').where({ id }).update({ nombre, id_tipo_bloque, id_agente, id_flujo, config });
       if (!affected) {
         return safeCallback(callback, { ok: false, error: 'Nodo de flujo no encontrado', status: 404 });
       }

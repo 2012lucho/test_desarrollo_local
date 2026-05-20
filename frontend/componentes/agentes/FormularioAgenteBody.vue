@@ -40,6 +40,27 @@
             </option>
           </select>
         </div>
+
+        <div v-if="configOptions.length" class="form-section">
+          <h6 class="section-title">Configuración adicional</h6>
+          <div
+            v-for="option in configOptions"
+            :key="option.field"
+            class="form-group mb-3"
+          >
+            <label>{{ option.label || option.field }}</label>
+            <SelectLlmModel
+              v-if="option.type === 't_select_llm'"
+              :modelValue="getConfigValue(option.field)"
+              :socket="socket"
+              :label="option.label || 'Selecciona un modelo LLM'"
+              :placeholder="option.placeholder || 'Selecciona un modelo'"
+              :required="option.required === true"
+              @update:modelValue="(value) => setConfigValue(option.field, value)"
+            />
+            <div v-else class="form-text text-muted">Tipo de campo desconocido: {{ option.type }}</div>
+          </div>
+        </div>
       </div>
 
       <div class="column column-salida">
@@ -66,6 +87,7 @@
 
 <script setup>
 import { computed, unref } from 'vue';
+import SelectLlmModel from '../llm/SelectLlmModel.vue';
 
 const props = defineProps({
   form: { type: Object, required: true },
@@ -74,6 +96,7 @@ const props = defineProps({
   incomingConnections: { type: [Array, Object], default: () => [] },
   outgoingConnections: { type: [Array, Object], default: () => [] },
   onDeleteConnection: { type: Function, default: () => {} },
+  socket: { type: Object, required: true },
   isEditing: { type: Boolean, default: false },
 });
 
@@ -99,6 +122,29 @@ const idTipoBloque = computed({
   },
 });
 
+const selectedBloque = computed(() => {
+  const id = Number(idTipoBloque.value || 0);
+  return props.blocks.find((block) => Number(block.id) === id) || null;
+});
+
+const configGeneral = computed(() => {
+  if (!selectedBloque.value) return null;
+  const cfg = selectedBloque.value.config_general;
+  if (typeof cfg === 'string') {
+    try {
+      return JSON.parse(cfg);
+    } catch {
+      return null;
+    }
+  }
+  return cfg;
+});
+
+const configOptions = computed(() => {
+  if (!configGeneral.value || typeof configGeneral.value !== 'object') return [];
+  return Array.isArray(configGeneral.value.options) ? configGeneral.value.options : [];
+});
+
 const errorText = computed(() => {
   if (props.mensajeError?.value != null) {
     return props.mensajeError.value;
@@ -108,6 +154,23 @@ const errorText = computed(() => {
 
 const incomingConnections = computed(() => unref(props.incomingConnections) || []);
 const outgoingConnections = computed(() => unref(props.outgoingConnections) || []);
+
+function getConfigValue(field) {
+  if (!formValue.value) return '';
+  return formValue.value.config?.[field] ?? '';
+}
+
+function setConfigValue(field, value) {
+  if (!formValue.value) return;
+  if (!formValue.value.config || typeof formValue.value.config !== 'object' || Array.isArray(formValue.value.config)) {
+    formValue.value.config = {};
+  }
+  formValue.value.config = {
+    ...formValue.value.config,
+    [field]: value,
+  };
+}
+
 const onDeleteConnection = (connectionId) => props.onDeleteConnection(connectionId);
 </script>
 
