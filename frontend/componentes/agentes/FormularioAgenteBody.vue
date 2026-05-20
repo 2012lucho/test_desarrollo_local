@@ -48,7 +48,10 @@
             :key="option.field"
             class="form-group mb-3"
           >
-            <label>{{ option.label || option.field }}</label>
+            <label>
+              {{ option.label || option.field }}
+              <span v-if="option.required" class="text-danger">*</span>
+            </label>
             <SelectLlmModel
               v-if="option.type === 't_select_llm'"
               :modelValue="getConfigValue(option.field)"
@@ -56,6 +59,14 @@
               :label="option.label || 'Selecciona un modelo LLM'"
               :placeholder="option.placeholder || 'Selecciona un modelo'"
               :required="option.required === true"
+              @update:modelValue="(value) => setConfigValue(option.field, value)"
+            />
+            <MarkdownEditor
+              v-else-if="option.type === 'md_textarea'"
+              :modelValue="getConfigValue(option.field)"
+              :label="option.label || 'Texto Markdown'"
+              :placeholder="option.placeholder || 'Escribe contenido en markdown'"
+              :rows="option.rows || 10"
               @update:modelValue="(value) => setConfigValue(option.field, value)"
             />
             <div v-else class="form-text text-muted">Tipo de campo desconocido: {{ option.type }}</div>
@@ -88,6 +99,7 @@
 <script setup>
 import { computed, unref } from 'vue';
 import SelectLlmModel from '../llm/SelectLlmModel.vue';
+import MarkdownEditor from '../MarkdownEditor.vue';
 
 const props = defineProps({
   form: { type: Object, required: true },

@@ -384,6 +384,24 @@ function abrirFormularioAgente(agente = null) {
       return;
     }
 
+    const bloque = availableBloques.value.find((block) => Number(block.id) === idTipoBloque);
+    if (bloque) {
+      const configGeneral = parseConfigValue(bloque.config_general);
+      const configOptions = configGeneral && typeof configGeneral === 'object' && Array.isArray(configGeneral.options)
+        ? configGeneral.options
+        : [];
+
+      for (const option of configOptions) {
+        if (option.required === true) {
+          const value = form.value.config?.[option.field];
+          if (value === null || value === undefined || String(value).trim() === '') {
+            mensajeErrorForm.value = `El campo '${option.label || option.field}' es requerido`;
+            return;
+          }
+        }
+      }
+    }
+
     cargandoForm.value = true;
     const payload = {
       id: originalId,
