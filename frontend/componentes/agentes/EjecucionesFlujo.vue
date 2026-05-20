@@ -89,6 +89,7 @@ function openDetalle(ejecucion) {
     body: DetalleEjecucionFlujo,
     bodyProps: { socket: props.socket, ejecucion },
     fullscreen: false,
+    dialogClass: 'gestor-modal-dialog--wide',
   });
 }
 
