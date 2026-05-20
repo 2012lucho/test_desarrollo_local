@@ -7,7 +7,14 @@ function normalizeJsonValue(value) {
   }
   if (typeof value === 'string') {
     const trimmed = value.trim();
-    return trimmed === '' ? null : trimmed;
+    if (trimmed === '') {
+      return null;
+    }
+    try {
+      return JSON.stringify(JSON.parse(trimmed));
+    } catch {
+      return trimmed;
+    }
   }
   try {
     return JSON.stringify(value);

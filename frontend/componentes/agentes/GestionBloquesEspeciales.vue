@@ -74,7 +74,12 @@ function prepareConfigValue(value) {
     return '{}';
   }
   if (typeof value === 'string') {
-    return value;
+    const trimmed = value.trim();
+    try {
+      return JSON.stringify(JSON.parse(trimmed), null, 2);
+    } catch {
+      return trimmed;
+    }
   }
   try {
     return JSON.stringify(value, null, 2);

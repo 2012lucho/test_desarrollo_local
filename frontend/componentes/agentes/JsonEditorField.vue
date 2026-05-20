@@ -21,6 +21,7 @@
             ref="textareaRef"
             :value="modelValue"
             @input="onInput"
+            @blur="onBlur"
             @scroll="syncScroll"
             :placeholder="placeholder"
             :rows="rows"
@@ -99,6 +100,17 @@ function onInput(event) {
 
 function toggleExpanded() {
   expanded.value = !expanded.value;
+}
+
+function onBlur() {
+  const trimmed = String(props.modelValue || '').trim();
+  if (!trimmed) return;
+  try {
+    const parsed = JSON.parse(trimmed);
+    emit('update:modelValue', JSON.stringify(parsed, null, 2));
+  } catch {
+    // Mantener el texto sin formato si no es un JSON válido.
+  }
 }
 
 function syncScroll(event) {
@@ -183,7 +195,9 @@ function syncScroll(event) {
 .json-textarea {
   position: relative;
   background: transparent;
-  color: #14213d;
+  color: transparent;
+  text-shadow: 0 0 0 #14213d;
+  caret-color: #14213d;
   border: none;
   resize: none;
   z-index: 1;
