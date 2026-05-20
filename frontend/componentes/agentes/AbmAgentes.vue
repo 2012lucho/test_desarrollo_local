@@ -123,7 +123,7 @@
       >
         <div class="chat-window-header" @pointerdown.prevent="startChatDrag($event)">
           <span>Chat: {{ chatWindow.title }}</span>
-          <button class="btn-close" type="button" aria-label="Cerrar" @click="closeChatWindow"></button>
+          <button class="btn-close" type="button" aria-label="Cerrar" @pointerdown.stop @click="closeChatWindow"></button>
         </div>
         <div class="chat-window-body">
           <div class="chat-messages">
@@ -978,6 +978,17 @@ onUnmounted(() => {
   color: #7a8ba9;
   line-height: 1;
   cursor: pointer;
+  min-width: 1.5rem;
+  min-height: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-close::before {
+  content: '×';
+  font-size: 1.2rem;
+  line-height: 1;
 }
 
 .node-body {
