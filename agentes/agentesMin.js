@@ -195,6 +195,7 @@ class Agente {
       entrada: this.entrada,
       promptSistema: this.promptSistema,
       respuesta: '',
+      thinking: '',
       parcial: [],
       completo: false,
     };
@@ -217,6 +218,7 @@ class Agente {
         }
 
         if (chunk.thinking != null && chunk.thinking !== '') {
+          resultado.thinking += chunk.thinking;
           if (onPartial) {
             onPartial(chunk.thinking, resultado, 'thinking');
           }
@@ -241,6 +243,7 @@ class Agente {
       try {
         const chunk = JSON.parse(buffer);
         if (chunk.thinking != null && chunk.thinking !== '') {
+          resultado.thinking += chunk.thinking;
           if (onPartial) {
             onPartial(chunk.thinking, resultado, 'thinking');
           }

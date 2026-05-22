@@ -125,6 +125,7 @@
           <span>Chat: {{ chatWindow.title }}</span>
           <button class="btn-close" type="button" aria-label="Cerrar" @pointerdown.stop @click="closeChatWindow"></button>
         </div>
+        <div class="chat-window-resize-handle" @pointerdown.prevent="startChatResize($event)"></div>
         <div class="chat-window-body">
           <div class="chat-messages">
             <div v-for="(message, index) in chatMessages" :key="index" :class="['chat-message', message.role]">
@@ -180,8 +181,15 @@ const chatWindow = reactive({
   dragging: false,
   offsetX: 0,
   offsetY: 0,
+  resizing: false,
+  resizeStartX: 0,
+  resizeStartY: 0,
+  resizeStartWidth: 420,
+  resizeStartHeight: 360,
 });
 const chatMessages = ref([]);
+const currentChatRequestId = ref(null);
+const currentAssistantMessageIndex = ref(null);
 const draggingNode = ref(null);
 const canvasRect = reactive({ left: 0, top: 0, width: 0, height: 0 });
 const pointerPos = reactive({ x: 0, y: 0 });
@@ -545,6 +553,94 @@ function parseConfigValue(value) {
   }
 }
 
+function getAgentConfigObject(agente) {
+  const config = parseConfigValue(agente?.config);
+  return config && typeof config === 'object' && !Array.isArray(config) ? config : {};
+}
+
+function applyChatWindowConfigFromNode(node) {
+  const agente = agentesMap.value[node.id];
+  const config = getAgentConfigObject(agente);
+  const saved = config.chat_window;
+  const width = Number(saved?.width);
+  const height = Number(saved?.height);
+  const x = Number(saved?.x);
+  const y = Number(saved?.y);
+
+  chatWindow.width = Number.isFinite(width) && width > 0 ? Math.min(Math.max(320, width), window.innerWidth - 20) : chatWindow.width;
+  chatWindow.height = Number.isFinite(height) && height > 0 ? Math.min(Math.max(320, height), window.innerHeight - 20) : chatWindow.height;
+  chatWindow.x = Number.isFinite(x)
+    ? Math.min(Math.max(20, x), window.innerWidth - chatWindow.width - 20)
+    : Math.min(Math.max(20, node.x + 20), window.innerWidth - chatWindow.width - 20);
+  chatWindow.y = Number.isFinite(y)
+    ? Math.min(Math.max(20, y), window.innerHeight - chatWindow.height - 20)
+    : Math.min(Math.max(20, node.y + 20), window.innerHeight - chatWindow.height - 20);
+}
+
+function isChatWindowConfigEqual(saved, current) {
+  if (!saved || !current) return false;
+  return (
+    Number(saved.x) === Number(current.x) &&
+    Number(saved.y) === Number(current.y) &&
+    Number(saved.width) === Number(current.width) &&
+    Number(saved.height) === Number(current.height)
+  );
+}
+
+function persistChatWindowConfig() {
+  if (!chatWindow.visible || !chatWindow.nodeId) return;
+  const agente = agentesMap.value[chatWindow.nodeId];
+  if (!agente) return;
+
+  const config = getAgentConfigObject(agente);
+  const chatConfig = {
+    x: Math.round(chatWindow.x),
+    y: Math.round(chatWindow.y),
+    width: Math.round(chatWindow.width),
+    height: Math.round(chatWindow.height),
+  };
+
+  if (isChatWindowConfigEqual(config.chat_window, chatConfig)) return;
+
+  config.chat_window = chatConfig;
+
+  socket.emit(
+    'agentes_nodo_flujo:update',
+    {
+      id: agente.id,
+      nombre: agente.nombre,
+      id_tipo_bloque: agente.id_tipo_bloque,
+      id_agente: agente.id_agente || null,
+      id_flujo: agente.id_flujo,
+      config,
+    },
+    (resp) => {
+      if (resp.ok && resp.data) {
+        agente.config = resp.data.config;
+      } else {
+        console.error(resp.error || 'Error actualizando configuración del chat del nodo');
+      }
+    },
+  );
+}
+
+function openChatWindow(node) {
+  chatWindow.visible = true;
+  chatWindow.nodeId = node.id;
+  chatWindow.title = getNodeLabel(node);
+  applyChatWindowConfigFromNode(node);
+  chatMessages.value = [{ role: 'system', text: `Chat del nodo ${chatWindow.title}` }];
+}
+
+function startChatResize(event) {
+  chatWindow.resizing = true;
+  chatWindow.resizeStartX = event.clientX;
+  chatWindow.resizeStartY = event.clientY;
+  chatWindow.resizeStartWidth = chatWindow.width;
+  chatWindow.resizeStartHeight = chatWindow.height;
+  event.currentTarget.setPointerCapture(event.pointerId);
+}
+
 function isChatConfigItem(item) {
   return item && typeof item === 'object' && String(item.type) === 't_chat';
 }
@@ -592,15 +688,6 @@ function nodeProvidesOutput(node) {
   return getNodeOutputItems(node).length > 0;
 }
 
-function openChatWindow(node) {
-  chatWindow.visible = true;
-  chatWindow.nodeId = node.id;
-  chatWindow.title = getNodeLabel(node);
-  chatWindow.x = Math.min(Math.max(20, node.x + 20), window.innerWidth - chatWindow.width - 20);
-  chatWindow.y = Math.min(Math.max(20, node.y + 20), window.innerHeight - chatWindow.height - 20);
-  chatMessages.value = [{ role: 'system', text: `Chat del nodo ${chatWindow.title}` }];
-}
-
 function abrirEjecuciones() {
   if (!hasSelectedFlujo.value) return;
   mostrarModal({
@@ -618,13 +705,28 @@ function startChatDrag(event) {
 }
 
 function onGlobalPointerMove(event) {
-  if (!chatWindow.dragging) return;
-  chatWindow.x = Math.min(Math.max(10, event.clientX - chatWindow.offsetX), window.innerWidth - chatWindow.width - 10);
-  chatWindow.y = Math.min(Math.max(10, event.clientY - chatWindow.offsetY), window.innerHeight - chatWindow.height - 10);
+  if (chatWindow.dragging) {
+    chatWindow.x = Math.min(Math.max(10, event.clientX - chatWindow.offsetX), window.innerWidth - chatWindow.width - 10);
+    chatWindow.y = Math.min(Math.max(10, event.clientY - chatWindow.offsetY), window.innerHeight - chatWindow.height - 10);
+  }
+
+  if (chatWindow.resizing) {
+    const deltaX = event.clientX - chatWindow.resizeStartX;
+    const deltaY = event.clientY - chatWindow.resizeStartY;
+    chatWindow.width = Math.max(320, chatWindow.resizeStartWidth + deltaX);
+    chatWindow.height = Math.max(320, chatWindow.resizeStartHeight + deltaY);
+  }
 }
 
 function onGlobalPointerUp() {
-  chatWindow.dragging = false;
+  if (chatWindow.dragging) {
+    chatWindow.dragging = false;
+    persistChatWindowConfig();
+  }
+  if (chatWindow.resizing) {
+    chatWindow.resizing = false;
+    persistChatWindowConfig();
+  }
 }
 
 function closeChatWindow() {
@@ -636,6 +738,9 @@ function sendChatMessage() {
   if (!message) return;
   chatMessages.value.push({ role: 'user', text: message });
   const placeholderIndex = chatMessages.value.push({ role: 'system', text: 'Procesando...' }) - 1;
+  const requestId = `${Date.now()}-${Math.random()}`;
+  currentChatRequestId.value = requestId;
+  currentAssistantMessageIndex.value = placeholderIndex;
 
   const nodeId = chatWindow.nodeId;
   if (nodeId && selectedFlujo.value) {
@@ -643,10 +748,13 @@ function sendChatMessage() {
       id_flujo: selectedFlujo.value,
       id_nodo_inicio: nodeId,
       data_entrada: { mensaje: message },
+      requestId,
     }, (resp) => {
       if (!resp.ok) {
         chatMessages.value[placeholderIndex].text = resp.error || 'Error iniciando ejecución de flujo';
         mensajeError.value = resp.error || 'Error iniciando ejecución de flujo';
+        currentChatRequestId.value = null;
+        currentAssistantMessageIndex.value = null;
         return;
       }
 
@@ -660,15 +768,29 @@ function sendChatMessage() {
       } else {
         chatMessages.value[placeholderIndex].text = 'Ejecución completada, pero no se obtuvo una salida final.';
       }
+
+      currentChatRequestId.value = null;
+      currentAssistantMessageIndex.value = null;
     });
   } else {
     chatMessages.value[placeholderIndex].text = 'No se pudo iniciar el flujo porque no hay nodo de chat o flujo seleccionado.';
+    currentChatRequestId.value = null;
+    currentAssistantMessageIndex.value = null;
   }
 
   chatInput.value = '';
 }
 
 const chatInput = ref('');
+
+function handleFlowPartial(data) {
+  if (!data || data.requestId !== currentChatRequestId.value) return;
+  const index = currentAssistantMessageIndex.value;
+  if (index == null || index < 0 || index >= chatMessages.value.length) return;
+  const message = chatMessages.value[index];
+  if (!message) return;
+  message.text = String(data.text ?? message.text);
+}
 
 function startConnection(node, output, outputIndex) {
   if (!nodeProvidesOutput(node)) return;
@@ -817,6 +939,7 @@ onMounted(() => {
   socket.on('agentes_nodo_flujo_coneccion:changed', cargarConexiones);
   socket.on('agentes_tipo_bloques_especiales:changed', loadBloquesEspeciales);
   socket.on('agentes_flujos:changed', cargarFlujos);
+  socket.on('agentes_nodo_flujo_ejecucion:partial', handleFlowPartial);
   window.addEventListener('pointermove', onGlobalPointerMove);
   window.addEventListener('pointerup', onGlobalPointerUp);
 });
@@ -829,6 +952,7 @@ onUnmounted(() => {
   socket.off('agentes_nodo_flujo_coneccion:changed', cargarConexiones);
   socket.off('agentes_tipo_bloques_especiales:changed', loadBloquesEspeciales);
   socket.off('agentes_flujos:changed', cargarFlujos);
+  socket.off('agentes_nodo_flujo_ejecucion:partial', handleFlowPartial);
   socket.disconnect();
 });
 </script>
@@ -1087,6 +1211,22 @@ onUnmounted(() => {
   border-radius: 1rem;
   box-shadow: 0 1rem 2rem rgba(10, 37, 82, 0.15);
   overflow: hidden;
+  min-width: 320px;
+  min-height: 320px;
+  max-width: calc(100vw - 20px);
+  max-height: calc(100vh - 20px);
+}
+
+.chat-window-resize-handle {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  right: 8px;
+  bottom: 8px;
+  cursor: se-resize;
+  background: rgba(44, 123, 229, 0.22);
+  border-radius: 0.35rem;
+  z-index: 1101;
 }
 
 .chat-window-header {

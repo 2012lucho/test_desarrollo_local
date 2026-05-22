@@ -88,7 +88,8 @@ function buildConnectionMap(conexiones) {
   }, {});
 }
 
-async function executeNode(node, dataEntrada, id_ejecucion) {
+async function executeNode(node, dataEntrada, id_ejecucion, options = {}) {
+  const { socket = null, requestId = null } = options;
   const fechaInicio = new Date();
   const config = parseNodeConfig(node.config);
   const tipoBloque = String(node.tipo_bloque_nombre || '').trim().toUpperCase();
@@ -133,6 +134,8 @@ async function executeNode(node, dataEntrada, id_ejecucion) {
     const model = String(config?.t_select_llm || config?.llm_model || config?.model || '').trim();
     const systemPrompt = String(config?.system_promt || config?.system_prompt || '').trim();
     const agenteId = node.id_agente != null ? String(node.id_agente).trim() : '';
+    const retornoParcial = config?.retorno_parcial === true || String(config?.retorno_parcial || '').trim().toLowerCase() === 'true';
+    const shouldEmitPartial = retornoParcial && socket && requestId;
 
     if (!model) {
       throw new Error(`Nodo AGENTE_IA ${node.id} no tiene modelo configurado en t_select_llm, llm_model o model`);
@@ -146,7 +149,20 @@ async function executeNode(node, dataEntrada, id_ejecucion) {
       }
     }
 
-    const resultadoAgente = await agente.ejecutar();
+    const partialCallback = shouldEmitPartial ? {
+      onPartial: (_chunk, resultado, kind) => {
+        const partialText = `${resultado.thinking || ''}${resultado.respuesta || ''}`.trim();
+        socket.emit('agentes_nodo_flujo_ejecucion:partial', {
+          requestId,
+          nodeId: node.id,
+          type: kind === 'thinking' ? 'reasoning' : 'response',
+          text: partialText,
+          done: Boolean(resultado.completo),
+        });
+      },
+    } : undefined;
+
+    const resultadoAgente = await agente.ejecutar(partialCallback);
 
     if (agenteId) {
       await agente.logMessage({ origen: 'AUTOMATICO', mensaje: resultadoAgente.respuesta });
@@ -176,7 +192,7 @@ async function executeNode(node, dataEntrada, id_ejecucion) {
   return { dataSalida, fechaInicio, fechaFin: new Date() };
 }
 
-async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesById, connectionsByOrigin, visited = [] }) {
+async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesById, connectionsByOrigin, visited = [], socket = null, requestId = null }) {
   if (visited.includes(nodeId)) {
     return [];
   }
@@ -186,7 +202,7 @@ async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesB
     return [];
   }
 
-  const { dataSalida, fechaInicio, fechaFin } = await executeNode(node, dataEntrada, id_ejecucion);
+  const { dataSalida, fechaInicio, fechaFin } = await executeNode(node, dataEntrada, id_ejecucion, { socket, requestId });
 
   await insertRegistro({
     id_flujo,
@@ -223,7 +239,7 @@ async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesB
   return results.length ? results : [{ nodo: node.id, dataSalida }];
 }
 
-async function runFlow({ id_flujo, id_nodo_inicio, data_entrada = null }) {
+async function runFlow({ id_flujo, id_nodo_inicio, data_entrada = null, socket = null, requestId = null }) {
   const ejecucion = await createEjecucion(id_flujo);
   const { nodos, conexiones } = await loadFlowNodesAndConnections(id_flujo);
   const nodesById = buildNodeMap(nodos);
@@ -241,6 +257,8 @@ async function runFlow({ id_flujo, id_nodo_inicio, data_entrada = null }) {
     nodesById,
     connectionsByOrigin,
     visited: [],
+    socket,
+    requestId,
   });
 
   const fecha_hora_fin = await finishEjecucion(ejecucion.id);

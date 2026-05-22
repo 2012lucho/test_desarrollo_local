@@ -69,6 +69,19 @@
               :rows="option.rows || 10"
               @update:modelValue="(value) => setConfigValue(option.field, value)"
             />
+            <div v-else-if="option.type === 'checkbox'" class="form-check">
+              <input
+                :id="`config-option-${option.field}`"
+                type="checkbox"
+                class="form-check-input"
+                :checked="Boolean(getConfigValue(option.field))"
+                @change="(event) => setConfigValue(option.field, event.target.checked)"
+              />
+              <label class="form-check-label" :for="`config-option-${option.field}`">
+                {{ option.label || option.field }}
+                <span v-if="option.required" class="text-danger">*</span>
+              </label>
+            </div>
             <div v-else class="form-text text-muted">Tipo de campo desconocido: {{ option.type }}</div>
           </div>
         </div>
