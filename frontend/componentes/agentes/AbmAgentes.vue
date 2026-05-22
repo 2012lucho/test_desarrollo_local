@@ -635,6 +635,7 @@ function sendChatMessage() {
   const message = chatInput.value.trim();
   if (!message) return;
   chatMessages.value.push({ role: 'user', text: message });
+  const placeholderIndex = chatMessages.value.push({ role: 'system', text: 'Procesando...' }) - 1;
 
   const nodeId = chatWindow.nodeId;
   if (nodeId && selectedFlujo.value) {
@@ -644,9 +645,24 @@ function sendChatMessage() {
       data_entrada: { mensaje: message },
     }, (resp) => {
       if (!resp.ok) {
+        chatMessages.value[placeholderIndex].text = resp.error || 'Error iniciando ejecución de flujo';
         mensajeError.value = resp.error || 'Error iniciando ejecución de flujo';
+        return;
+      }
+
+      const resultados = resp.data?.resultados;
+      if (Array.isArray(resultados) && resultados.length > 0) {
+        const finalOutput = resultados[0]?.dataSalida || resultados[0];
+        const finalText = typeof finalOutput === 'string'
+          ? finalOutput
+          : finalOutput?.chatText || finalOutput?.respuesta || finalOutput?.text || finalOutput?.output || JSON.stringify(finalOutput, null, 2);
+        chatMessages.value[placeholderIndex].text = finalText;
+      } else {
+        chatMessages.value[placeholderIndex].text = 'Ejecución completada, pero no se obtuvo una salida final.';
       }
     });
+  } else {
+    chatMessages.value[placeholderIndex].text = 'No se pudo iniciar el flujo porque no hay nodo de chat o flujo seleccionado.';
   }
 
   chatInput.value = '';

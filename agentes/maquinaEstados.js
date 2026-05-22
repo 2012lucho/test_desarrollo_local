@@ -93,7 +93,41 @@ async function executeNode(node, dataEntrada, id_ejecucion) {
   const config = parseNodeConfig(node.config);
   const tipoBloque = String(node.tipo_bloque_nombre || '').trim().toUpperCase();
   const nombreNodo = String(node.nombre || '').trim().toUpperCase();
+  const isChatOut = tipoBloque === 'CHAT_OUT' || nombreNodo === 'CHAT_OUT';
   const isAgenteIa = tipoBloque === 'AGENTE_IA' || nombreNodo === 'AGENTE_IA';
+
+  const entradaTexto = (() => {
+    if (dataEntrada == null) return '';
+    if (typeof dataEntrada === 'string') return dataEntrada;
+    if (typeof dataEntrada === 'object') {
+      if (typeof dataEntrada.respuesta === 'string' && dataEntrada.respuesta.trim()) {
+        return dataEntrada.respuesta;
+      }
+      if (typeof dataEntrada.input === 'string' && dataEntrada.input.trim()) {
+        return dataEntrada.input;
+      }
+      if (typeof dataEntrada.mensaje === 'string' && dataEntrada.mensaje.trim()) {
+        return dataEntrada.mensaje;
+      }
+      try {
+        return JSON.stringify(dataEntrada, null, 2);
+      } catch {
+        return String(dataEntrada);
+      }
+    }
+    return String(dataEntrada);
+  })();
+
+  if (isChatOut) {
+    const dataSalida = {
+      nodo: { id: node.id, nombre: node.nombre },
+      chatText: entradaTexto,
+      input: dataEntrada,
+      ejecutado_en: formatDateTime(new Date()),
+    };
+
+    return { dataSalida, fechaInicio, fechaFin: new Date() };
+  }
 
   if (isAgenteIa) {
     const model = String(config?.t_select_llm || config?.llm_model || config?.model || '').trim();
@@ -103,25 +137,6 @@ async function executeNode(node, dataEntrada, id_ejecucion) {
     if (!model) {
       throw new Error(`Nodo AGENTE_IA ${node.id} no tiene modelo configurado en t_select_llm, llm_model o model`);
     }
-
-    const entradaTexto = (() => {
-      if (dataEntrada == null) return '';
-      if (typeof dataEntrada === 'string') return dataEntrada;
-      if (typeof dataEntrada === 'object') {
-        if (typeof dataEntrada.respuesta === 'string' && dataEntrada.respuesta.trim()) {
-          return dataEntrada.respuesta;
-        }
-        if (typeof dataEntrada.input === 'string' && dataEntrada.input.trim()) {
-          return dataEntrada.input;
-        }
-        try {
-          return JSON.stringify(dataEntrada, null, 2);
-        } catch {
-          return String(dataEntrada);
-        }
-      }
-      return String(dataEntrada);
-    })();
 
     const agente = new Agente(model).setPromptSistema(systemPrompt).setEntrada(entradaTexto);
     if (agenteId) {
@@ -163,12 +178,12 @@ async function executeNode(node, dataEntrada, id_ejecucion) {
 
 async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesById, connectionsByOrigin, visited = [] }) {
   if (visited.includes(nodeId)) {
-    return;
+    return [];
   }
 
   const node = nodesById[nodeId];
   if (!node) {
-    return;
+    return [];
   }
 
   const { dataSalida, fechaInicio, fechaFin } = await executeNode(node, dataEntrada, id_ejecucion);
@@ -185,12 +200,13 @@ async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesB
 
   const nextConnections = connectionsByOrigin[nodeId] || [];
   if (!nextConnections.length) {
-    return;
+    return [{ nodo: node.id, dataSalida }];
   }
 
   const nextVisited = [...visited, nodeId];
+  const results = [];
   for (const conexion of nextConnections) {
-    await executePath({
+    const childResults = await executePath({
       id_flujo,
       id_ejecucion,
       nodeId: Number(conexion.id_nodo_destino),
@@ -199,7 +215,12 @@ async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesB
       connectionsByOrigin,
       visited: nextVisited,
     });
+    if (Array.isArray(childResults)) {
+      results.push(...childResults);
+    }
   }
+
+  return results.length ? results : [{ nodo: node.id, dataSalida }];
 }
 
 async function runFlow({ id_flujo, id_nodo_inicio, data_entrada = null }) {
@@ -212,7 +233,7 @@ async function runFlow({ id_flujo, id_nodo_inicio, data_entrada = null }) {
     throw new Error(`Nodo de inicio ${id_nodo_inicio} no encontrado en flujo ${id_flujo}`);
   }
 
-  await executePath({
+  const resultados = await executePath({
     id_flujo,
     id_ejecucion: ejecucion.id,
     nodeId: id_nodo_inicio,
@@ -223,7 +244,7 @@ async function runFlow({ id_flujo, id_nodo_inicio, data_entrada = null }) {
   });
 
   const fecha_hora_fin = await finishEjecucion(ejecucion.id);
-  return { ...ejecucion, fecha_hora_fin };
+  return { ...ejecucion, fecha_hora_fin, resultados };
 }
 
 module.exports = {
