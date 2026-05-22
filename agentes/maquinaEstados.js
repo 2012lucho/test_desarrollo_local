@@ -1,3 +1,4 @@
+const Agente = require('./agentesMin.js');
 const db = require('../backend/src/db');
 
 function normalizeJsonValue(value) {
@@ -13,6 +14,23 @@ function normalizeJsonValue(value) {
   } catch (error) {
     return null;
   }
+}
+
+function parseNodeConfig(config) {
+  if (config == null) {
+    return {};
+  }
+  if (typeof config === 'object' && !Array.isArray(config)) {
+    return config;
+  }
+  if (typeof config === 'string') {
+    try {
+      return JSON.parse(config);
+    } catch {
+      return {};
+    }
+  }
+  return {};
 }
 
 function formatDateTime(value) {
@@ -49,7 +67,10 @@ async function insertRegistro({ id_flujo, id_ejecucion, node, dataEntrada, dataS
 }
 
 async function loadFlowNodesAndConnections(id_flujo) {
-  const nodos = await db('agentes_nodo_flujo').where({ id_flujo }).select('*');
+  const nodos = await db('agentes_nodo_flujo as n')
+    .leftJoin('agentes_tipo_bloques_especiales as t', 'n.id_tipo_bloque', 't.id')
+    .where({ 'n.id_flujo': id_flujo })
+    .select('n.*', 't.nombre as tipo_bloque_nombre');
   const conexiones = await db('agentes_nodo_flujo_coneccion').where({ id_flujo }).select('*');
   return { nodos, conexiones };
 }
@@ -67,8 +88,68 @@ function buildConnectionMap(conexiones) {
   }, {});
 }
 
-async function executeNode(node, dataEntrada) {
+async function executeNode(node, dataEntrada, id_ejecucion) {
   const fechaInicio = new Date();
+  const config = parseNodeConfig(node.config);
+  const tipoBloque = String(node.tipo_bloque_nombre || '').trim().toUpperCase();
+  const nombreNodo = String(node.nombre || '').trim().toUpperCase();
+  const isAgenteIa = tipoBloque === 'AGENTE_IA' || nombreNodo === 'AGENTE_IA';
+
+  if (isAgenteIa) {
+    const model = String(config?.t_select_llm || config?.llm_model || config?.model || '').trim();
+    const systemPrompt = String(config?.system_promt || config?.system_prompt || '').trim();
+    const agenteId = node.id_agente != null ? String(node.id_agente).trim() : '';
+
+    if (!model) {
+      throw new Error(`Nodo AGENTE_IA ${node.id} no tiene modelo configurado en t_select_llm, llm_model o model`);
+    }
+
+    const entradaTexto = (() => {
+      if (dataEntrada == null) return '';
+      if (typeof dataEntrada === 'string') return dataEntrada;
+      if (typeof dataEntrada === 'object') {
+        if (typeof dataEntrada.respuesta === 'string' && dataEntrada.respuesta.trim()) {
+          return dataEntrada.respuesta;
+        }
+        if (typeof dataEntrada.input === 'string' && dataEntrada.input.trim()) {
+          return dataEntrada.input;
+        }
+        try {
+          return JSON.stringify(dataEntrada, null, 2);
+        } catch {
+          return String(dataEntrada);
+        }
+      }
+      return String(dataEntrada);
+    })();
+
+    const agente = new Agente(model).setPromptSistema(systemPrompt).setEntrada(entradaTexto);
+    if (agenteId) {
+      agente.setSessionContext({ id_agente: agenteId, originado_por: 'AUTOMATICO' }).setSessionId(id_ejecucion);
+      if (entradaTexto) {
+        await agente.logMessage({ origen: 'HUMANO', mensaje: entradaTexto });
+      }
+    }
+
+    const resultadoAgente = await agente.ejecutar();
+
+    if (agenteId) {
+      await agente.logMessage({ origen: 'AUTOMATICO', mensaje: resultadoAgente.respuesta });
+    }
+
+    const dataSalida = {
+      nodo: { id: node.id, nombre: node.nombre },
+      model,
+      input: entradaTexto,
+      promptSistema: systemPrompt,
+      respuesta: resultadoAgente.respuesta,
+      ejecutado_en: formatDateTime(new Date()),
+      sessionId: id_ejecucion,
+    };
+
+    return { dataSalida, fechaInicio, fechaFin: new Date() };
+  }
+
   await sleep(1000);
 
   const dataSalida = {
@@ -90,7 +171,7 @@ async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesB
     return;
   }
 
-  const { dataSalida, fechaInicio, fechaFin } = await executeNode(node, dataEntrada);
+  const { dataSalida, fechaInicio, fechaFin } = await executeNode(node, dataEntrada, id_ejecucion);
 
   await insertRegistro({
     id_flujo,

@@ -8,6 +8,7 @@ try {
 const { Agent, fetch: undiciFetch } = undici;
 const db = require(path.resolve(__dirname, '../backend/src/db.js'));
 
+const DEBUG_AGENT_LOGS = String(process.env.DEBUG || '').trim().toLowerCase() === 'true';
 const SESSION_ORIGINS = ['HUMANO', 'AUTOMATICO'];
 const OLLAMA_DISPATCHER = new Agent({ connectTimeout: 0, headersTimeout: 0, bodyTimeout: 0 });
 
@@ -68,13 +69,29 @@ class Agente {
       throw new Error('id_agente no definido para crear sesión');
     }
 
-    const [insertedId] = await db('session_agente').insert({
+    const payload = {
       fecha_hora_ini: db.fn.now(),
       fecha_hora_fin: db.fn.now(),
       id_agente: this.session.id_agente,
       id_proyecto: this.session.id_proyecto,
       originado_por: this.session.originado_por,
-    });
+    };
+
+    if (this.session.id != null) {
+      const existing = await db('session_agente').where({ id: this.session.id }).first();
+      if (existing) {
+        await db('session_agente').where({ id: this.session.id }).update({
+          fecha_hora_fin: db.fn.now(),
+          id_agente: this.session.id_agente,
+          id_proyecto: this.session.id_proyecto,
+          originado_por: this.session.originado_por,
+        });
+        return this.session.id;
+      }
+      payload.id = this.session.id;
+    }
+
+    const [insertedId] = await db('session_agente').insert(payload);
 
     this.session.id = insertedId;
     return insertedId;
@@ -149,6 +166,14 @@ class Agente {
     }
 
     const prompt = this._buildPrompt();
+    if (DEBUG_AGENT_LOGS) {
+      console.log('[AGENTE_IA] Iniciando ejecución Ollama:', {
+        model: this.modelo,
+        entrada: this.entrada,
+        promptSistema: this.promptSistema,
+      });
+    }
+
     const response = await undiciFetch(`${this.ollamaUrl}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -237,6 +262,12 @@ class Agente {
     }
 
     resultado.completo = true;
+    if (DEBUG_AGENT_LOGS) {
+      console.log('[AGENTE_IA] Resultado Ollama:', {
+        model: this.modelo,
+        respuesta: resultado.respuesta,
+      });
+    }
     if (onComplete) {
       onComplete(resultado);
     }
