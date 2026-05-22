@@ -10,7 +10,7 @@
         <label>Descripción</label>
         <textarea v-model="descripcion" class="form-control" rows="3" placeholder="Descripción del bloque"></textarea>
       </div>
-      <div class="form-group mb-3">
+      <div class="form-group mb-3 form-group--full">
         <JsonEditorField
           v-model="configEntrada"
           label="Config Entrada"
@@ -18,7 +18,7 @@
           placeholder='Ejemplo: {"key": "value"}'
         />
       </div>
-      <div class="form-group mb-3">
+      <div class="form-group mb-3 form-group--full">
         <JsonEditorField
           v-model="configGeneral"
           label="Config General"
@@ -26,7 +26,7 @@
           placeholder='Ejemplo: {"key": "value"}'
         />
       </div>
-      <div class="form-group mb-3">
+      <div class="form-group mb-3 form-group--full">
         <JsonEditorField
           v-model="configSalida"
           label="Config Salida"
@@ -94,13 +94,18 @@ const errorText = computed(() => {
 
 <style scoped>
 .bloque-form-body {
-  min-width: 760px;
+  width: 100%;
+  min-width: 0;
 }
 
 .form-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
+}
+
+.form-group--full {
+  grid-column: span 2;
 }
 
 textarea.form-control {

@@ -139,6 +139,7 @@ function abrirFormulario(bloque) {
     bodyProps: { form, mensajeError: mensajeErrorForm },
     footerProps: { cargando: cargandoForm, onGuardar: guardar, onCerrar: () => cerrarFormularioBloqueEspecial && cerrarFormularioBloqueEspecial() },
     fullscreen: false,
+    dialogClass: 'gestor-modal-dialog--wide',
   });
 }
 
