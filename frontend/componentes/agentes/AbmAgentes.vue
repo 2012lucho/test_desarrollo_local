@@ -83,6 +83,16 @@
               🗑️
             </button>
             <button
+              v-if="nodeHasExecutionRecord(node)"
+              class="icon-button icon-view"
+              @pointerdown.stop.prevent="abrirDetalleUltimaEjecucion(node)"
+              @click.stop
+              type="button"
+              aria-label="Ver última ejecución"
+            >
+              👁️
+            </button>
+            <button
               v-if="nodeHasChatInput(node)"
               class="icon-button icon-chat"
               @pointerdown.stop.prevent="openChatWindow(node)"
@@ -155,6 +165,7 @@ import GestionBloquesEspeciales from './GestionBloquesEspeciales.vue';
 import GestionFlujosHeader from './GestionFlujosHeader.vue';
 import GestionFlujos from './GestionFlujos.vue';
 import EjecucionesFlujo from './EjecucionesFlujo.vue';
+import DetalleRegistroNodoEjecucion from './DetalleRegistroNodoEjecucion.vue';
 
 const socket = io(import.meta.env.VITE_API_URL);
 const { mostrarModal } = useModal();
@@ -169,6 +180,7 @@ const agentesMap = computed(() => Object.fromEntries(agentes.value.map((agente) 
 const bloquesMap = computed(() => Object.fromEntries(availableBloques.value.map((bloque) => [bloque.id, bloque])));
 const hasSelectedFlujo = computed(() => selectedFlujo.value !== null && selectedFlujo.value !== undefined && selectedFlujo.value !== '');
 const conexiones = ref([]);
+const lastNodeExecutionRecords = ref({});
 const connectionStart = ref(null);
 const chatWindow = reactive({
   visible: false,
@@ -284,6 +296,7 @@ function cargarAgentes() {
       syncNodesWithAgentes();
       mensajeError.value = '';
       cargarConexiones();
+      cargarUltimosRegistrosPorNodo();
     } else {
       mensajeError.value = resp.error || 'Error cargando nodos de flujo';
     }
@@ -686,6 +699,43 @@ function nodeProvidesOutput(node) {
   const bloque = agente ? bloquesMap.value[agente.id_tipo_bloque] : null;
   if (!bloque) return true;
   return getNodeOutputItems(node).length > 0;
+}
+
+function cargarUltimosRegistrosPorNodo() {
+  if (!hasSelectedFlujo.value) {
+    lastNodeExecutionRecords.value = {};
+    return;
+  }
+
+  socket.emit('agentes_nodo_flujo_ejecucion:last-records', { id_flujo: selectedFlujo.value }, (resp) => {
+    if (!resp.ok) {
+      lastNodeExecutionRecords.value = {};
+      console.error(resp.error || 'Error cargando últimos registros de ejecución por nodo');
+      return;
+    }
+
+    lastNodeExecutionRecords.value = (resp.data || []).reduce((map, record) => {
+      if (record && record.nodo != null) {
+        map[record.nodo] = record;
+      }
+      return map;
+    }, {});
+  });
+}
+
+function nodeHasExecutionRecord(node) {
+  return Boolean(lastNodeExecutionRecords.value[node.id]);
+}
+
+function abrirDetalleUltimaEjecucion(node) {
+  const record = lastNodeExecutionRecords.value[node.id];
+  if (!record) return;
+
+  mostrarModal({
+    body: DetalleRegistroNodoEjecucion,
+    bodyProps: { record, nodeLabel: getNodeLabel(node) },
+    fullscreen: false,
+  });
 }
 
 function abrirEjecuciones() {

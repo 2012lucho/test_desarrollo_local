@@ -56,9 +56,11 @@ async function finishEjecucion(id) {
 }
 
 async function insertRegistro({ id_flujo, id_ejecucion, node, dataEntrada, dataSalida, fechaInicio, fechaFin }) {
+  const nodoId = Number(node?.id ?? node) || null;
   return db('registro_ejecucion_flujo').insert({
     id_flujo,
     id_ejecucion,
+    nodo: nodoId,
     fecha_hora_ini: formatDateTime(fechaInicio),
     fecha_hora_fin: formatDateTime(fechaFin),
     data_entrada: normalizeJsonValue(dataEntrada),

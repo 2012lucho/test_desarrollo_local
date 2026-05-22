@@ -246,6 +246,32 @@ module.exports = (socket, io) => {
     }
   });
 
+  socket.on('agentes_nodo_flujo_ejecucion:last-records', async (payload, callback) => {
+    const id_flujo = Number(payload?.id_flujo || 0);
+    if (!id_flujo) {
+      return safeCallback(callback, { ok: false, error: 'Id de flujo inválido para listar registros de nodos' });
+    }
+
+    try {
+      const subquery = db('registro_ejecucion_flujo')
+        .join('ejecucion_flujo as e2', 'registro_ejecucion_flujo.id_ejecucion', 'e2.id')
+        .where('e2.id_flujo', id_flujo)
+        .groupBy('registro_ejecucion_flujo.nodo')
+        .select(db.raw('MAX(registro_ejecucion_flujo.id) as max_id'));
+
+      const registros = await db('registro_ejecucion_flujo as r')
+        .join('ejecucion_flujo as e', 'r.id_ejecucion', 'e.id')
+        .where('e.id_flujo', id_flujo)
+        .whereIn('r.id', subquery)
+        .orderBy('r.nodo', 'asc');
+
+      safeCallback(callback, { ok: true, data: registros });
+    } catch (error) {
+      console.error('agentes_nodo_flujo_ejecucion:last-records error', error);
+      safeCallback(callback, { ok: false, error: 'Error listando los últimos registros de ejecución por nodo' });
+    }
+  });
+
   socket.on('agentes_flujo_ejecucion:records', async (payload, callback) => {
     const id_ejecucion = Number(payload?.id_ejecucion || 0);
     if (!id_ejecucion) {
