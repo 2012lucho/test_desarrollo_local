@@ -109,6 +109,16 @@ async function executeNode(node, dataEntrada, id_ejecucion, options = {}) {
       if (typeof dataEntrada.input === 'string' && dataEntrada.input.trim()) {
         return dataEntrada.input;
       }
+      if (dataEntrada.input && typeof dataEntrada.input === 'object') {
+        if (typeof dataEntrada.input.mensaje === 'string' && dataEntrada.input.mensaje.trim()) {
+          return dataEntrada.input.mensaje;
+        }
+        try {
+          return JSON.stringify(dataEntrada.input, null, 2);
+        } catch {
+          // fall through to stringify full object
+        }
+      }
       if (typeof dataEntrada.mensaje === 'string' && dataEntrada.mensaje.trim()) {
         return dataEntrada.mensaje;
       }
@@ -167,18 +177,10 @@ async function executeNode(node, dataEntrada, id_ejecucion, options = {}) {
     const resultadoAgente = await agente.ejecutar(partialCallback);
 
     if (agenteId) {
-      await agente.logMessage({ origen: 'AUTOMATICO', mensaje: resultadoAgente.respuesta });
+      await agente.logMessage({ origen: 'AUTOMATICO', mensaje: resultadoAgente.respuesta || '' });
     }
 
-    const dataSalida = {
-      nodo: { id: node.id, nombre: node.nombre },
-      model,
-      input: entradaTexto,
-      promptSistema: systemPrompt,
-      respuesta: resultadoAgente.respuesta,
-      ejecutado_en: formatDateTime(new Date()),
-      sessionId: id_ejecucion,
-    };
+    const dataSalida = String(resultadoAgente.respuesta ?? '');
 
     return { dataSalida, fechaInicio, fechaFin: new Date() };
   }
