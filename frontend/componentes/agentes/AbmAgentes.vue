@@ -534,9 +534,26 @@ function abrirFormularioAgente(agente = null) {
         : [];
 
       for (const option of configOptions) {
+        const value = form.value.config?.[option.field];
         if (option.required === true) {
-          const value = form.value.config?.[option.field];
-          if (value === null || value === undefined || String(value).trim() === '') {
+          if (option.type === 't_list_switch') {
+            if (!Array.isArray(value) || value.length === 0) {
+              mensajeErrorForm.value = `El campo '${option.label || option.field}' es requerido`;
+              return;
+            }
+            const invalidCondition = value.some((item) => {
+              return (
+                !item ||
+                typeof item !== 'object' ||
+                !String(item.nombre_salida || '').trim() ||
+                !String(item.condicion || '').trim()
+              );
+            });
+            if (invalidCondition) {
+              mensajeErrorForm.value = `Cada condición en '${option.label || option.field}' debe tener nombre_salida y condicion`;
+              return;
+            }
+          } else if (value === null || value === undefined || String(value).trim() === '') {
             mensajeErrorForm.value = `El campo '${option.label || option.field}' es requerido`;
             return;
           }
@@ -641,6 +658,14 @@ function getNodeLabel(node) {
 
 function getNodeOutputItems(node) {
   const agente = agentesMap.value[node.id];
+  const agenteConfig = getAgentConfigObject(agente);
+  if (Array.isArray(agenteConfig?.condiciones_switch)) {
+    return agenteConfig.condiciones_switch.map((item, index) => {
+      const name = item && typeof item === 'object' ? String(item.nombre_salida || `Salida ${index + 1}`) : `Salida ${index + 1}`;
+      return { ...(item && typeof item === 'object' ? item : {}), name };
+    });
+  }
+
   const bloque = agente ? bloquesMap.value[agente.id_tipo_bloque] : null;
   const configSalida = bloque ? parseConfigValue(bloque.config_salida) : null;
   if (!bloque) {

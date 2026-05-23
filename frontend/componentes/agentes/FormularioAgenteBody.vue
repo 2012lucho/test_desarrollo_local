@@ -82,6 +82,41 @@
                 <span v-if="option.required" class="text-danger">*</span>
               </label>
             </div>
+            <div v-else-if="option.type === 't_list_switch'" class="list-switch-editor">
+              <div v-if="!getListSwitchValue(option.field).length" class="form-text text-muted mb-2">No hay condiciones definidas.</div>
+              <div
+                v-for="(item, index) in getListSwitchValue(option.field)"
+                :key="index"
+                class="list-switch-item mb-3"
+              >
+                <div class="row g-2 align-items-end">
+                  <div class="col">
+                    <label>Nombre de salida</label>
+                    <input
+                      class="form-control"
+                      type="text"
+                      :value="item.nombre_salida || ''"
+                      @input="(event) => updateListSwitchItem(option.field, index, 'nombre_salida', event.target.value)"
+                      placeholder="Nombre de salida"
+                    />
+                  </div>
+                  <div class="col">
+                    <label>Condición</label>
+                    <input
+                      class="form-control"
+                      type="text"
+                      :value="item.condicion || ''"
+                      @input="(event) => updateListSwitchItem(option.field, index, 'condicion', event.target.value)"
+                      placeholder="Expresión de condición"
+                    />
+                  </div>
+                  <div class="col-auto">
+                    <button class="btn btn-outline-danger btn-sm w-100" type="button" @click="removeListSwitchRow(option.field, index)">Eliminar</button>
+                  </div>
+                </div>
+              </div>
+              <button class="btn btn-outline-primary btn-sm" type="button" @click="addListSwitchRow(option.field)">Agregar condición</button>
+            </div>
             <div v-else class="form-text text-muted">Tipo de campo desconocido: {{ option.type }}</div>
           </div>
         </div>
@@ -196,6 +231,34 @@ function setConfigValue(field, value) {
   };
 }
 
+function getListSwitchValue(field) {
+  if (!formValue.value) return [];
+  const value = formValue.value.config?.[field];
+  return Array.isArray(value) ? value : [];
+}
+
+function updateListSwitchItem(field, index, key, value) {
+  const current = getListSwitchValue(field);
+  const next = [...current];
+  next[index] = {
+    ...next[index],
+    [key]: value,
+  };
+  setConfigValue(field, next);
+}
+
+function addListSwitchRow(field) {
+  const current = getListSwitchValue(field);
+  setConfigValue(field, [...current, { nombre_salida: '', condicion: '' }]);
+}
+
+function removeListSwitchRow(field, index) {
+  const current = getListSwitchValue(field);
+  const next = [...current];
+  next.splice(index, 1);
+  setConfigValue(field, next);
+}
+
 const onDeleteConnection = (connectionId) => props.onDeleteConnection(connectionId);
 </script>
 
@@ -249,5 +312,21 @@ const onDeleteConnection = (connectionId) => props.onDeleteConnection(connection
 
 textarea.form-control {
   font-family: monospace;
+}
+
+.list-switch-editor {
+  border: 1px solid #d7e2ed;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  background: #ffffff;
+}
+
+.list-switch-item {
+  border-bottom: 1px solid #e9eef4;
+  padding-bottom: 0.75rem;
+}
+
+.list-switch-item:last-child {
+  border-bottom: none;
 }
 </style>
