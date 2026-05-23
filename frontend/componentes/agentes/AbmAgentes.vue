@@ -254,16 +254,40 @@ function updateCanvasRect() {
   canvasRect.height = rect.height;
 }
 
+function ensureConfigGeneralKey(clave, valor) {
+  socket.emit('config_general:update', { clave, valor }, (resp) => {
+    if (!resp.ok) {
+      console.error(resp.error || `Error creando clave config_general ${clave}`);
+    }
+  });
+}
+
 function loadToolbarPosition() {
   socket.emit('config_general:list', null, (resp) => {
     if (!resp.ok) return;
     const values = Object.fromEntries((resp.data || []).map((item) => [item.clave, item.valor]));
     const x = Number(values.v_agentes_barra1_px);
     const y = Number(values.v_agentes_barra1_py);
+    const selected = values.v_agentes_flujo_selected;
+
     if (Number.isFinite(x)) toolbar.x = x;
     if (Number.isFinite(y)) toolbar.y = y;
     toolbar.lastPersistedX = toolbar.x;
     toolbar.lastPersistedY = toolbar.y;
+
+    if (selected !== undefined && selected !== null && String(selected).trim() !== '') {
+      selectedFlujo.value = Number(selected);
+    }
+
+    if (values.v_agentes_barra1_px === undefined) {
+      ensureConfigGeneralKey('v_agentes_barra1_px', String(toolbar.x));
+    }
+    if (values.v_agentes_barra1_py === undefined) {
+      ensureConfigGeneralKey('v_agentes_barra1_py', String(toolbar.y));
+    }
+    if (values.v_agentes_flujo_selected === undefined) {
+      ensureConfigGeneralKey('v_agentes_flujo_selected', '');
+    }
   });
 }
 
@@ -293,6 +317,15 @@ function persistToolbarPosition() {
   });
   socket.emit('config_general:update', { clave: 'v_agentes_barra1_py', valor: String(posY) }, (resp) => {
     if (!resp.ok) console.error(resp.error || 'Error guardando posición Y de la barra de agentes');
+  });
+}
+
+function persistSelectedFlujo() {
+  const valor = selectedFlujo.value !== null && selectedFlujo.value !== undefined && selectedFlujo.value !== ''
+    ? String(selectedFlujo.value)
+    : '';
+  socket.emit('config_general:update', { clave: 'v_agentes_flujo_selected', valor }, (resp) => {
+    if (!resp.ok) console.error(resp.error || 'Error guardando flujo seleccionado');
   });
 }
 
@@ -416,6 +449,7 @@ function cargarFlujos() {
 
 watch(selectedFlujo, () => {
   cargarAgentes();
+  persistSelectedFlujo();
 });
 
 function abrirFormularioAgente(agente = null) {
