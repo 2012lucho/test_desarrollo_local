@@ -100,6 +100,7 @@ async function executeNode(node, dataEntrada, id_ejecucion, options = {}) {
   const isChatOut = tipoBloque === 'CHAT_OUT' || nombreNodo === 'CHAT_OUT';
   const isAgenteIa = tipoBloque === 'AGENTE_IA' || nombreNodo === 'AGENTE_IA';
   const isFormatJson = tipoBloque === 'FORMAT_JSON' || nombreNodo === 'FORMAT_JSON';
+  const isEdit = tipoBloque === 'EDIT' || nombreNodo === 'EDIT';
 
   const entradaTexto = (() => {
     if (dataEntrada == null) return '';
@@ -157,6 +158,36 @@ async function executeNode(node, dataEntrada, id_ejecucion, options = {}) {
     }
 
     const dataSalida = (parsed !== null && typeof parsed === 'object') ? parsed : null;
+    return { dataSalida, fechaInicio, fechaFin: new Date() };
+  }
+
+  if (isEdit) {
+    const keyArray = String(config?.key_array || '').trim();
+    const originalInput = dataEntrada;
+    let dataSalida = null;
+
+    const cloneInput = (value) => {
+      if (value === null || value === undefined) return value;
+      try {
+        return JSON.parse(JSON.stringify(value));
+      } catch {
+        return value;
+      }
+    };
+
+    if (keyArray && originalInput && typeof originalInput === 'object' && !Array.isArray(originalInput)) {
+      const arrayValue = originalInput[keyArray];
+      if (Array.isArray(arrayValue)) {
+        dataSalida = arrayValue.map((element) => ({ input: cloneInput(originalInput), element }));
+      } else if (arrayValue !== null && arrayValue !== undefined) {
+        dataSalida = [{ input: cloneInput(originalInput), element: arrayValue }];
+      } else {
+        dataSalida = [];
+      }
+    } else {
+      dataSalida = [];
+    }
+
     return { dataSalida, fechaInicio, fechaFin: new Date() };
   }
 

@@ -657,10 +657,12 @@ function getNodeOutputItems(node) {
   const agente = agentesMap.value[node.id];
   const agenteConfig = getAgentConfigObject(agente);
   if (Array.isArray(agenteConfig?.condiciones_switch)) {
-    return agenteConfig.condiciones_switch.map((item, index) => {
+    const outputs = agenteConfig.condiciones_switch.map((item, index) => {
       const name = item && typeof item === 'object' ? String(item.nombre_salida || `Salida ${index + 1}`) : `Salida ${index + 1}`;
       return { ...(item && typeof item === 'object' ? item : {}), name };
     });
+    const hasDefault = outputs.some((output) => String(output.name || '').trim().toLowerCase() === 'default');
+    return hasDefault ? outputs : [...outputs, { name: 'default' }];
   }
 
   const bloque = agente ? bloquesMap.value[agente.id_tipo_bloque] : null;
