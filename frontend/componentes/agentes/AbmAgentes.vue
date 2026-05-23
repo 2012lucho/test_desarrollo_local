@@ -11,11 +11,7 @@
       @click.self="cancelConnection"
       @wheel.prevent="onCanvasWheel"
     >
-      <div class="toolbar-overlay" :style="toolbarStyle" @pointerdown.stop>
-        <div class="toolbar-overlay-header" @pointerdown.stop.prevent="startToolbarDrag($event)">
-          <span>Controles agentes</span>
-          <button class="btn-close" type="button" aria-label="Restablecer posición" @pointerdown.stop @click.stop="resetToolbarPosition"></button>
-        </div>
+      <div v-if="toolbar.visible" class="toolbar-overlay" :style="toolbarStyle" @pointerdown.stop="handleToolbarPointerDown($event)">
         <div class="toolbar-overlay-body">
           <select v-model.number="selectedFlujo" class="form-select flujo-selector">
             <option value="">Selecciona un flujo</option>
@@ -31,13 +27,7 @@
             <button class="btn" :disabled="!hasSelectedFlujo" @click="zoomIn" type="button">+ Acercar</button>
           </div>
           <div class="toolbar-status">
-            <span>Zoom: <strong>{{ Math.round(zoom * 100) }}%</strong></span>
-            <span v-if="connectionStart" class="toolbar-connection-status">
-              Conectando desde <strong>{{ connectionStart.fromLabel }}</strong>. Haz clic en la entrada de otro nodo.
-            </span>
-            <span v-else>
-              Haz clic en el punto de salida de un nodo para crear una conexión.
-            </span>
+            <input class="form-control toolbar-zoom-input" type="text" readonly :value="Math.round(zoom * 100) + '%'"></input>
           </div>
         </div>
       </div>
@@ -193,13 +183,14 @@ const connectionStart = ref(null);
 const toolbar = reactive({
   x: 20,
   y: 20,
+  visible: true,
   dragging: false,
   offsetX: 0,
   offsetY: 0,
   lastPersistedX: 20,
   lastPersistedY: 20,
 });
-const TOOLBAR_WIDTH = 420;
+const TOOLBAR_WIDTH = 1260;
 const toolbarStyle = computed(() => ({
   left: `${toolbar.x}px`,
   top: `${toolbar.y}px`,
@@ -309,6 +300,12 @@ function clampToolbarPosition(x, y) {
     x: Math.min(Math.max(10, x), Math.max(10, window.innerWidth - TOOLBAR_WIDTH - 10)),
     y: Math.min(Math.max(10, y), Math.max(10, window.innerHeight - 10)),
   };
+}
+
+function handleToolbarPointerDown(event) {
+  const interactiveElement = event.target.closest('button, input, select, textarea, option, a, label');
+  if (interactiveElement) return;
+  startToolbarDrag(event);
 }
 
 function startToolbarDrag(event) {
@@ -1184,7 +1181,8 @@ onUnmounted(() => {
 .toolbar-overlay {
   position: fixed;
   z-index: 1100;
-  width: min(420px, calc(100vw - 24px));
+  width: min(1260px, calc(100vw - 24px));
+  max-width: 100%;
   border: 1px solid #cfe2ff;
   border-radius: 1rem;
   background: rgba(255, 255, 255, 0.96);
@@ -1193,16 +1191,14 @@ onUnmounted(() => {
   pointer-events: auto;
 }
 
-.toolbar-overlay-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.85rem 1rem;
-  background: #eef4ff;
-  border-bottom: 1px solid #d6e4ff;
-  cursor: grab;
-  user-select: none;
+.btn-danger {
+  border-color: #dc3545;
+  background: #dc3545;
+  color: #fff;
+}
+
+.btn-danger:hover {
+  background: #b02a37;
 }
 
 .toolbar-overlay-header:active {
@@ -1210,7 +1206,9 @@ onUnmounted(() => {
 }
 
 .toolbar-overlay-body {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 0.75rem;
   padding: 1rem;
 }
@@ -1221,8 +1219,24 @@ onUnmounted(() => {
   gap: 0.5rem;
 }
 
+.toolbar-status {
+  display: flex;
+  align-items: center;
+}
+
+.toolbar-zoom-input {
+  width: 5.5rem;
+  min-width: 5.5rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 0.6rem;
+  border: 1px solid #ced4da;
+  background: #f8f9fa;
+  color: #212529;
+}
+
 .toolbar-buttons .btn {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
+  width: auto;
 }
 
 .flujo-selector {

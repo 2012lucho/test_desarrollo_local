@@ -54,6 +54,10 @@ const sidebarCollapsed = ref(false);
 </style>
 
 <style>
+html {
+  font-size: 75%;
+}
+
 html, body, #app {
   min-height: 100%;
   height: 100%;
@@ -61,6 +65,7 @@ html, body, #app {
 body {
   margin: 0;
   min-height: 100%;
+  font-size: 1rem;
 }
 .container-fluid {
   min-height: 100vh;
