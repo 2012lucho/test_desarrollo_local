@@ -264,13 +264,15 @@ const onDeleteConnection = (connectionId) => props.onDeleteConnection(connection
 
 <style scoped>
 .agente-form-body {
-  min-width: 760px;
+  width: 100%;
+  min-width: 0;
 }
 
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 1fr 3fr 1fr;
   gap: 1rem;
+  width: 100%;
 }
 
 .section-title {
