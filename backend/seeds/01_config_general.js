@@ -4,5 +4,6 @@ exports.seed = async function (knex) {
     { clave: 'v_agentes_barra1_px', valor: '0' },
     { clave: 'v_agentes_barra1_py', valor: '0' },
     { clave: 'v_agentes_flujo_selected', valor: '' },
+    { clave: 'v_agentes_zoom', valor: '1' },
   ]);
 };

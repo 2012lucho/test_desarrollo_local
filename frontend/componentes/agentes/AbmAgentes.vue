@@ -278,6 +278,10 @@ function loadToolbarPosition() {
     if (selected !== undefined && selected !== null && String(selected).trim() !== '') {
       selectedFlujo.value = Number(selected);
     }
+    const zoomValue = Number(values.v_agentes_zoom);
+    if (Number.isFinite(zoomValue)) {
+      zoom.value = Math.min(maxZoom, Math.max(minZoom, zoomValue));
+    }
 
     if (values.v_agentes_barra1_px === undefined) {
       ensureConfigGeneralKey('v_agentes_barra1_px', String(toolbar.x));
@@ -288,6 +292,15 @@ function loadToolbarPosition() {
     if (values.v_agentes_flujo_selected === undefined) {
       ensureConfigGeneralKey('v_agentes_flujo_selected', '');
     }
+    if (values.v_agentes_zoom === undefined) {
+      ensureConfigGeneralKey('v_agentes_zoom', String(zoom.value));
+    }
+  });
+}
+
+function persistZoom() {
+  socket.emit('config_general:update', { clave: 'v_agentes_zoom', valor: String(zoom.value) }, (resp) => {
+    if (!resp.ok) console.error(resp.error || 'Error guardando valor de zoom');
   });
 }
 
@@ -450,6 +463,10 @@ function cargarFlujos() {
 watch(selectedFlujo, () => {
   cargarAgentes();
   persistSelectedFlujo();
+});
+
+watch(zoom, () => {
+  persistZoom();
 });
 
 function abrirFormularioAgente(agente = null) {
