@@ -1,5 +1,6 @@
 const Agente = require('./agentesMin.js');
 const db = require('../backend/src/db');
+const DEBUG_FLOW_LOGS = String(process.env.DEBUG || '').trim().toLowerCase() === 'true';
 
 function normalizeJsonValue(value) {
   if (value === null || value === undefined) {
@@ -98,6 +99,7 @@ async function executeNode(node, dataEntrada, id_ejecucion, options = {}) {
   const nombreNodo = String(node.nombre || '').trim().toUpperCase();
   const isChatOut = tipoBloque === 'CHAT_OUT' || nombreNodo === 'CHAT_OUT';
   const isAgenteIa = tipoBloque === 'AGENTE_IA' || nombreNodo === 'AGENTE_IA';
+  const isFormatJson = tipoBloque === 'FORMAT_JSON' || nombreNodo === 'FORMAT_JSON';
 
   const entradaTexto = (() => {
     if (dataEntrada == null) return '';
@@ -139,6 +141,22 @@ async function executeNode(node, dataEntrada, id_ejecucion, options = {}) {
       ejecutado_en: formatDateTime(new Date()),
     };
 
+    return { dataSalida, fechaInicio, fechaFin: new Date() };
+  }
+
+  if (isFormatJson) {
+    let parsed = null;
+    if (typeof dataEntrada === 'string') {
+      try {
+        parsed = JSON.parse(dataEntrada);
+      } catch (error) {
+        parsed = null;
+      }
+    } else if (dataEntrada !== null && dataEntrada !== undefined && typeof dataEntrada === 'object') {
+      parsed = dataEntrada;
+    }
+
+    const dataSalida = (parsed !== null && typeof parsed === 'object') ? parsed : null;
     return { dataSalida, fechaInicio, fechaFin: new Date() };
   }
 
@@ -207,6 +225,16 @@ async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesB
   }
 
   const { dataSalida, fechaInicio, fechaFin } = await executeNode(node, dataEntrada, id_ejecucion, { socket, requestId });
+
+  if (DEBUG_FLOW_LOGS) {
+    console.log('[EJECUCION_FLUJO] Nodo:', {
+      id: node.id,
+      nombre: node.nombre,
+      tipo: node.tipo_bloque_nombre || node.tipo_bloque || null,
+      dataEntrada,
+      dataSalida,
+    });
+  }
 
   await insertRegistro({
     id_flujo,

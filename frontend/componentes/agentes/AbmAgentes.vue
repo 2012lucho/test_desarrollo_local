@@ -1,27 +1,5 @@
 <template>
   <div class="agentes-page">
-    <div class="toolbar">
-      <select v-model.number="selectedFlujo" class="form-select flujo-selector">
-        <option value="">Selecciona un flujo</option>
-        <option v-for="flujo in flujos" :key="flujo.id" :value="flujo.id">{{ flujo.nombre }}</option>
-      </select>
-      <button class="btn btn-secondary" @click="abrirGestionFlujos">Gestionar Flujos</button>
-      <button class="btn" :disabled="!hasSelectedFlujo" @click="abrirNuevoAgente">+ Nuevo nodo</button>
-      <button class="btn btn-secondary" @click="abrirGestionBloques">Gestionar Bloques</button>
-      <button class="btn btn-secondary" :disabled="!hasSelectedFlujo" @click="abrirEjecuciones">Ejecuciones</button>
-      <button class="btn" :disabled="!hasSelectedFlujo" @click="zoomOut">- Alejar</button>
-      <button class="btn" :disabled="!hasSelectedFlujo" @click="zoomReset">100%</button>
-      <button class="btn" :disabled="!hasSelectedFlujo" @click="zoomIn">+ Acercar</button>
-      <div class="toolbar-status">
-        <span>Zoom: <strong>{{ Math.round(zoom * 100) }}%</strong></span>
-        <span v-if="connectionStart" class="toolbar-connection-status">
-          Conectando desde <strong>{{ connectionStart.fromLabel }}</strong>. Haz clic en la entrada de otro nodo.
-        </span>
-        <span v-else>
-          Haz clic en el punto de salida de un nodo para crear una conexión.
-        </span>
-      </div>
-    </div>
     <div v-if="mensajeError" class="toolbar-error">{{ mensajeError }}</div>
 
     <div
@@ -33,6 +11,36 @@
       @click.self="cancelConnection"
       @wheel.prevent="onCanvasWheel"
     >
+      <div class="toolbar-overlay" :style="toolbarStyle" @pointerdown.stop>
+        <div class="toolbar-overlay-header" @pointerdown.stop.prevent="startToolbarDrag($event)">
+          <span>Controles agentes</span>
+          <button class="btn-close" type="button" aria-label="Restablecer posición" @pointerdown.stop @click.stop="resetToolbarPosition"></button>
+        </div>
+        <div class="toolbar-overlay-body">
+          <select v-model.number="selectedFlujo" class="form-select flujo-selector">
+            <option value="">Selecciona un flujo</option>
+            <option v-for="flujo in flujos" :key="flujo.id" :value="flujo.id">{{ flujo.nombre }}</option>
+          </select>
+          <div class="toolbar-buttons">
+            <button class="btn btn-secondary" @click="abrirGestionFlujos" type="button">Gestionar Flujos</button>
+            <button class="btn" :disabled="!hasSelectedFlujo" @click="abrirNuevoAgente" type="button">+ Nuevo nodo</button>
+            <button class="btn btn-secondary" @click="abrirGestionBloques" type="button">Gestionar Bloques</button>
+            <button class="btn btn-secondary" :disabled="!hasSelectedFlujo" @click="abrirEjecuciones" type="button">Ejecuciones</button>
+            <button class="btn" :disabled="!hasSelectedFlujo" @click="zoomOut" type="button">- Alejar</button>
+            <button class="btn" :disabled="!hasSelectedFlujo" @click="zoomReset" type="button">100%</button>
+            <button class="btn" :disabled="!hasSelectedFlujo" @click="zoomIn" type="button">+ Acercar</button>
+          </div>
+          <div class="toolbar-status">
+            <span>Zoom: <strong>{{ Math.round(zoom * 100) }}%</strong></span>
+            <span v-if="connectionStart" class="toolbar-connection-status">
+              Conectando desde <strong>{{ connectionStart.fromLabel }}</strong>. Haz clic en la entrada de otro nodo.
+            </span>
+            <span v-else>
+              Haz clic en el punto de salida de un nodo para crear una conexión.
+            </span>
+          </div>
+        </div>
+      </div>
       <div class="canvas-content" :style="canvasTransformStyle">
         <svg class="canvas-svg" :width="canvasWidth" :height="canvasHeight">
           <defs>
@@ -182,6 +190,20 @@ const hasSelectedFlujo = computed(() => selectedFlujo.value !== null && selected
 const conexiones = ref([]);
 const lastNodeExecutionRecords = ref({});
 const connectionStart = ref(null);
+const toolbar = reactive({
+  x: 20,
+  y: 20,
+  dragging: false,
+  offsetX: 0,
+  offsetY: 0,
+  lastPersistedX: 20,
+  lastPersistedY: 20,
+});
+const TOOLBAR_WIDTH = 420;
+const toolbarStyle = computed(() => ({
+  left: `${toolbar.x}px`,
+  top: `${toolbar.y}px`,
+}));
 const chatWindow = reactive({
   visible: false,
   nodeId: null,
@@ -230,6 +252,54 @@ function updateCanvasRect() {
   canvasRect.top = rect.top;
   canvasRect.width = rect.width;
   canvasRect.height = rect.height;
+}
+
+function loadToolbarPosition() {
+  socket.emit('config_general:list', null, (resp) => {
+    if (!resp.ok) return;
+    const values = Object.fromEntries((resp.data || []).map((item) => [item.clave, item.valor]));
+    const x = Number(values.v_agentes_barra1_px);
+    const y = Number(values.v_agentes_barra1_py);
+    if (Number.isFinite(x)) toolbar.x = x;
+    if (Number.isFinite(y)) toolbar.y = y;
+    toolbar.lastPersistedX = toolbar.x;
+    toolbar.lastPersistedY = toolbar.y;
+  });
+}
+
+function clampToolbarPosition(x, y) {
+  return {
+    x: Math.min(Math.max(10, x), Math.max(10, window.innerWidth - TOOLBAR_WIDTH - 10)),
+    y: Math.min(Math.max(10, y), Math.max(10, window.innerHeight - 10)),
+  };
+}
+
+function startToolbarDrag(event) {
+  toolbar.dragging = true;
+  toolbar.offsetX = event.clientX - toolbar.x;
+  toolbar.offsetY = event.clientY - toolbar.y;
+  event.currentTarget.setPointerCapture(event.pointerId);
+}
+
+function persistToolbarPosition() {
+  const posX = Math.round(toolbar.x);
+  const posY = Math.round(toolbar.y);
+  if (toolbar.lastPersistedX === posX && toolbar.lastPersistedY === posY) return;
+  toolbar.lastPersistedX = posX;
+  toolbar.lastPersistedY = posY;
+
+  socket.emit('config_general:update', { clave: 'v_agentes_barra1_px', valor: String(posX) }, (resp) => {
+    if (!resp.ok) console.error(resp.error || 'Error guardando posición X de la barra de agentes');
+  });
+  socket.emit('config_general:update', { clave: 'v_agentes_barra1_py', valor: String(posY) }, (resp) => {
+    if (!resp.ok) console.error(resp.error || 'Error guardando posición Y de la barra de agentes');
+  });
+}
+
+function resetToolbarPosition() {
+  toolbar.x = 20;
+  toolbar.y = 20;
+  persistToolbarPosition();
 }
 
 function abrirNuevoAgente() {
@@ -760,6 +830,12 @@ function onGlobalPointerMove(event) {
     chatWindow.y = Math.min(Math.max(10, event.clientY - chatWindow.offsetY), window.innerHeight - chatWindow.height - 10);
   }
 
+  if (toolbar.dragging) {
+    const nextPos = clampToolbarPosition(event.clientX - toolbar.offsetX, event.clientY - toolbar.offsetY);
+    toolbar.x = nextPos.x;
+    toolbar.y = nextPos.y;
+  }
+
   if (chatWindow.resizing) {
     const deltaX = event.clientX - chatWindow.resizeStartX;
     const deltaY = event.clientY - chatWindow.resizeStartY;
@@ -772,6 +848,10 @@ function onGlobalPointerUp() {
   if (chatWindow.dragging) {
     chatWindow.dragging = false;
     persistChatWindowConfig();
+  }
+  if (toolbar.dragging) {
+    toolbar.dragging = false;
+    persistToolbarPosition();
   }
   if (chatWindow.resizing) {
     chatWindow.resizing = false;
@@ -981,6 +1061,7 @@ async function endPointerActions() {
 
 onMounted(() => {
   updateCanvasRect();
+  loadToolbarPosition();
   cargarAgentes();
   cargarFlujos();
   loadBloquesEspeciales();
@@ -1009,6 +1090,10 @@ onUnmounted(() => {
 
 <style scoped>
 .agentes-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: calc(100vh - 72px);
   padding: 1rem;
 }
 
@@ -1018,6 +1103,50 @@ onUnmounted(() => {
   align-items: center;
   gap: 1rem;
   margin-bottom: 1rem;
+}
+
+.toolbar-overlay {
+  position: fixed;
+  z-index: 1100;
+  width: min(420px, calc(100vw - 24px));
+  border: 1px solid #cfe2ff;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 1rem 2rem rgba(10, 37, 82, 0.14);
+  backdrop-filter: blur(10px);
+  pointer-events: auto;
+}
+
+.toolbar-overlay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  background: #eef4ff;
+  border-bottom: 1px solid #d6e4ff;
+  cursor: grab;
+  user-select: none;
+}
+
+.toolbar-overlay-header:active {
+  cursor: grabbing;
+}
+
+.toolbar-overlay-body {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+}
+
+.toolbar-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.toolbar-buttons .btn {
+  flex: 1 1 auto;
 }
 
 .flujo-selector {
@@ -1063,7 +1192,8 @@ onUnmounted(() => {
 
 .canvas-area {
   position: relative;
-  min-height: 520px;
+  flex: 1;
+  min-height: 0;
   border: 1px solid #d8e2ef;
   border-radius: 1rem;
   overflow: hidden;

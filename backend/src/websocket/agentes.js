@@ -605,6 +605,38 @@ module.exports = (socket, io) => {
     }
   });
 
+  socket.on('config_general:list', async (_payload, callback) => {
+    try {
+      const rows = await db('config_general').select('clave', 'valor');
+      safeCallback(callback, { ok: true, data: rows });
+    } catch (error) {
+      console.error('config_general:list error', error);
+      safeCallback(callback, { ok: false, error: 'Error obteniendo configuración general' });
+    }
+  });
+
+  socket.on('config_general:update', async (payload, callback) => {
+    const clave = String(payload?.clave || '').trim();
+    const valor = payload?.valor !== undefined && payload?.valor !== null ? String(payload.valor) : '';
+
+    if (!clave) {
+      return safeCallback(callback, { ok: false, error: 'Clave inválida para actualizar configuración general' });
+    }
+
+    try {
+      const existent = await db('config_general').where({ clave }).first();
+      if (existent) {
+        await db('config_general').where({ clave }).update({ valor });
+      } else {
+        await db('config_general').insert({ clave, valor });
+      }
+      safeCallback(callback, { ok: true, data: { clave, valor } });
+    } catch (error) {
+      console.error('config_general:update error', error);
+      safeCallback(callback, { ok: false, error: 'Error actualizando configuración general' });
+    }
+  });
+
   socket.on('agentes_nodo_flujo:delete', async (payload, callback) => {
     const id = Number(payload?.id || payload || 0);
     if (!id) {

@@ -122,3 +122,7 @@
 - id_campo_1 integer fk referencias campos_tabla(id) notnull
 - id_campo_2 integer fk referencias campos_tabla(id) notnull
 - tipo_relacion varchar(10) notnull default '1-1'
+
+## config_general
+- clave varchar(36) pk
+- valor text null
