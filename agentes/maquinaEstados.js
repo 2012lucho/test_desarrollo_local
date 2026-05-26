@@ -82,6 +82,23 @@ function buildNodeMap(nodos) {
   return Object.fromEntries(nodos.map((nodo) => [nodo.id, nodo]));
 }
 
+const activeFlowControllers = new Map();
+
+function createAbortError() {
+  const error = new Error('Flow execution aborted');
+  error.name = 'AbortError';
+  return error;
+}
+
+function cancelFlowExecution(requestId) {
+  if (!requestId) return false;
+  const controller = activeFlowControllers.get(requestId);
+  if (!controller) return false;
+  controller.abort();
+  activeFlowControllers.delete(requestId);
+  return true;
+}
+
 function buildConnectionMap(conexiones) {
   return conexiones.reduce((acc, conexion) => {
     const origin = Number(conexion.id_nodo_origen);
@@ -144,7 +161,8 @@ function compareValues(left, right, operator = '==') {
 }
 
 async function executeNode(node, dataEntrada, id_ejecucion, options = {}) {
-  const { socket = null, requestId = null } = options;
+  const { socket = null, requestId = null, signal = null } = options;
+  if (signal?.aborted) throw createAbortError();
   const fechaInicio = new Date();
   const config = parseNodeConfig(node.config);
   const tipoBloque = String(node.tipo_bloque_nombre || '').trim().toUpperCase();
@@ -275,16 +293,23 @@ async function executeNode(node, dataEntrada, id_ejecucion, options = {}) {
       },
     } : undefined;
 
-    const resultadoAgente = await agente.ejecutar(partialCallback);
+    const resultadoAgente = await agente.ejecutar({
+      ...partialCallback,
+      signal,
+    });
 
     if (agenteId) {
       await agente.logMessage({ origen: 'AUTOMATICO', mensaje: resultadoAgente.respuesta || '' });
     }
 
+    if (signal?.aborted) throw createAbortError();
+
     const dataSalida = String(resultadoAgente.respuesta ?? '');
 
     return { dataSalida, fechaInicio, fechaFin: new Date() };
   }
+
+  if (signal?.aborted) throw createAbortError();
 
   const isIf = tipoBloque === 'IF' || nombreNodo === 'IF';
   if (isIf) {
@@ -309,7 +334,8 @@ async function executeNode(node, dataEntrada, id_ejecucion, options = {}) {
   return { dataSalida, fechaInicio, fechaFin: new Date() };
 }
 
-async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesById, connectionsByOrigin, visited = [], socket = null, requestId = null }) {
+async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesById, connectionsByOrigin, visited = [], socket = null, requestId = null, signal = null }) {
+  if (signal?.aborted) throw createAbortError();
   if (visited.includes(nodeId)) {
     return [];
   }
@@ -329,7 +355,9 @@ async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesB
     });
   }
 
-  const { dataSalida, fechaInicio, fechaFin, ifResult } = await executeNode(node, dataEntrada, id_ejecucion, { socket, requestId });
+  const { dataSalida, fechaInicio, fechaFin, ifResult } = await executeNode(node, dataEntrada, id_ejecucion, { socket, requestId, signal });
+
+  if (signal?.aborted) throw createAbortError();
 
   if (DEBUG_FLOW_LOGS) {
     console.log('[EJECUCION_FLUJO] Nodo:', {
@@ -391,6 +419,7 @@ async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesB
       visited: nextVisited,
       socket,
       requestId,
+      signal,
     });
     if (Array.isArray(childResults)) {
       results.push(...childResults);
@@ -410,22 +439,41 @@ async function runFlow({ id_flujo, id_nodo_inicio, data_entrada = null, socket =
     throw new Error(`Nodo de inicio ${id_nodo_inicio} no encontrado en flujo ${id_flujo}`);
   }
 
-  const resultados = await executePath({
-    id_flujo,
-    id_ejecucion: ejecucion.id,
-    nodeId: id_nodo_inicio,
-    dataEntrada: data_entrada,
-    nodesById,
-    connectionsByOrigin,
-    visited: [],
-    socket,
-    requestId,
-  });
+  const controller = new AbortController();
+  if (requestId) {
+    activeFlowControllers.set(requestId, controller);
+  }
 
-  const fecha_hora_fin = await finishEjecucion(ejecucion.id);
-  return { ...ejecucion, fecha_hora_fin, resultados };
+  try {
+    const resultados = await executePath({
+      id_flujo,
+      id_ejecucion: ejecucion.id,
+      nodeId: id_nodo_inicio,
+      dataEntrada: data_entrada,
+      nodesById,
+      connectionsByOrigin,
+      visited: [],
+      socket,
+      requestId,
+      signal: controller.signal,
+    });
+
+    const fecha_hora_fin = await finishEjecucion(ejecucion.id);
+    return { ...ejecucion, fecha_hora_fin, resultados };
+  } catch (error) {
+    if (error?.name === 'AbortError' || String(error.message).includes('aborted')) {
+      const fecha_hora_fin = await finishEjecucion(ejecucion.id);
+      return { ...ejecucion, fecha_hora_fin, resultados: [] };
+    }
+    throw error;
+  } finally {
+    if (requestId) {
+      activeFlowControllers.delete(requestId);
+    }
+  }
 }
 
 module.exports = {
   runFlow,
+  cancelFlowExecution,
 };

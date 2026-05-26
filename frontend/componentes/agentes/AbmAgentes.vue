@@ -22,6 +22,9 @@
             <button class="btn" :disabled="!hasSelectedFlujo" @click="abrirNuevoAgente" type="button">+ Nuevo nodo</button>
             <button class="btn btn-secondary" @click="abrirGestionBloques" type="button">Gestionar Bloques</button>
             <button class="btn btn-secondary" :disabled="!hasSelectedFlujo" @click="abrirEjecuciones" type="button">Ejecuciones</button>
+            <button class="btn btn-danger" :disabled="!isFlowRunning || isStoppingExecution" @click="detenerEjecucion" type="button">
+              {{ isStoppingExecution ? 'Deteniendo...' : 'Detener ejecución' }}
+            </button>
             <button class="btn" :disabled="!hasSelectedFlujo" @click="zoomOut" type="button">- Alejar</button>
             <button class="btn" :disabled="!hasSelectedFlujo" @click="zoomReset" type="button">100%</button>
             <button class="btn" :disabled="!hasSelectedFlujo" @click="zoomIn" type="button">+ Acercar</button>
@@ -189,6 +192,8 @@ const executionState = reactive({
   requestId: null,
   currentNodeId: null,
 });
+const isStoppingExecution = ref(false);
+const isFlowRunning = computed(() => Boolean(executionState.requestId));
 const finishedNodeIds = ref([]);
 const connectionStart = ref(null);
 const toolbar = reactive({
@@ -1020,6 +1025,25 @@ function resetExecutionState() {
   executionState.requestId = null;
   executionState.currentNodeId = null;
   finishedNodeIds.value = [];
+}
+
+function detenerEjecucion() {
+  if (!executionState.requestId) return;
+  isStoppingExecution.value = true;
+  const requestId = executionState.requestId;
+
+  socket.emit('agentes_nodo_flujo_ejecucion:stop', { requestId }, (resp) => {
+    if (!resp?.ok) {
+      mensajeError.value = resp?.error || 'Error al detener la ejecución del flujo';
+    }
+    socket.emit('ollama:stop', { requestId }, () => {});
+    if (currentChatRequestId.value === requestId) {
+      currentChatRequestId.value = null;
+      currentAssistantMessageIndex.value = null;
+    }
+    resetExecutionState();
+    isStoppingExecution.value = false;
+  });
 }
 
 function handleNodeExecutionStarted(data) {

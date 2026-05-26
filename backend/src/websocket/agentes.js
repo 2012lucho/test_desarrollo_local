@@ -309,6 +309,16 @@ module.exports = (socket, io) => {
     }
   });
 
+  socket.on('agentes_nodo_flujo_ejecucion:stop', (payload, callback) => {
+    const requestId = payload?.requestId ? String(payload.requestId) : null;
+    if (!requestId) {
+      return safeCallback(callback, { ok: false, error: 'requestId es requerido para detener la ejecución del flujo' });
+    }
+
+    const stopped = maquinaEstados.cancelFlowExecution(requestId);
+    safeCallback(callback, { ok: true, stopped });
+  });
+
   socket.on('agentes_nodo_flujo:list', async (payload, callback) => {
     try {
       const query = db('agentes_nodo_flujo').select('*').orderBy('id', 'asc');
