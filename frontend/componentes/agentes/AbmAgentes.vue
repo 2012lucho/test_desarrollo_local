@@ -22,8 +22,16 @@
             <button class="btn" :disabled="!hasSelectedFlujo" @click="abrirNuevoAgente" type="button">+ Nuevo nodo</button>
             <button class="btn btn-secondary" @click="abrirGestionBloques" type="button">Gestionar Bloques</button>
             <button class="btn btn-secondary" :disabled="!hasSelectedFlujo" @click="abrirEjecuciones" type="button">Ejecuciones</button>
-            <button class="btn btn-danger" :disabled="!isFlowRunning || isStoppingExecution" @click="detenerEjecucion" type="button">
-              {{ isStoppingExecution ? 'Deteniendo...' : 'Detener ejecución' }}
+            <button
+              class="btn btn-danger btn-stop-execution"
+              :disabled="!isFlowRunning || isStoppingExecution"
+              @click="detenerEjecucion"
+              type="button"
+              aria-label="Detener ejecución"
+            >
+              <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                <rect x="4" y="4" width="8" height="8" rx="1" ry="1" />
+              </svg>
             </button>
             <button class="btn" :disabled="!hasSelectedFlujo" @click="zoomOut" type="button">- Alejar</button>
             <button class="btn" :disabled="!hasSelectedFlujo" @click="zoomReset" type="button">100%</button>
@@ -74,6 +82,7 @@
           v-for="node in nodes"
           :key="node.id"
           class="node-card"
+          :data-node-id="String(node.id)"
           :class="nodeClasses(node)"
           :style="nodeStyle(node)"
           @pointerdown="startNodeDrag(node, $event)"
@@ -112,6 +121,7 @@
           </div>
           <div
             class="handle input-handle"
+            :data-handle-type="'input'"
             :class="{ 'handle-disabled': !nodeAcceptsInput(node) }"
             @pointerdown.stop.prevent="nodeAcceptsInput(node) && finishConnection(node)"
             @click.stop
@@ -123,6 +133,7 @@
             v-for="(output, outputIndex) in getNodeOutputItems(node)"
             :key="`${node.id}-output-${outputIndex}`"
             class="handle output-handle"
+            :data-output-index="outputIndex"
             :class="{ 'handle-disabled': !nodeProvidesOutput(node) }"
             @pointerdown.stop.prevent="nodeProvidesOutput(node) && startConnection(node, output, outputIndex)"
             @click.stop
@@ -709,7 +720,52 @@ function getNodeOutputItems(node) {
   return [{ name: String(configSalida) }];
 }
 
+function findNodeElement(node) {
+  if (!canvasRef.value || !node) return null;
+  return canvasRef.value.querySelector(`[data-node-id="${String(node.id)}"]`);
+}
+
+function getHandleCenterPosition(node, handleElement, type) {
+  if (!node || !handleElement) return null;
+  const dot = handleElement.querySelector('.handle-dot');
+  const dotWidth = dot?.offsetWidth || 0;
+  const dotLeft = dot ? dot.offsetLeft : 0;
+  const xOffset = handleElement.offsetLeft + dotLeft + dotWidth / 2;
+  const yOffset = handleElement.offsetTop + handleElement.offsetHeight / 2;
+  const baseX = node.x;
+  const baseY = node.y;
+
+  if (type === 'output') {
+    return {
+      x: baseX + handleElement.offsetLeft + handleElement.offsetWidth - dotWidth / 2,
+      y: baseY + yOffset,
+    };
+  }
+
+  return {
+    x: baseX + xOffset,
+    y: baseY + yOffset,
+  };
+}
+
 function connectorPosition(node, type, outputIndex = 0) {
+  if (!node) return null;
+  const nodeElement = findNodeElement(node);
+  if (nodeElement) {
+    if (type === 'output') {
+      const outputs = getNodeOutputItems(node);
+      const index = Math.max(0, Math.min(outputIndex, outputs.length - 1));
+      const handle = nodeElement.querySelector(`[data-output-index="${index}"]`);
+      const position = getHandleCenterPosition(node, handle, 'output');
+      if (position) return position;
+    }
+    if (type === 'input') {
+      const handle = nodeElement.querySelector('[data-handle-type="input"]');
+      const position = getHandleCenterPosition(node, handle, 'input');
+      if (position) return position;
+    }
+  }
+
   const x = node.x + (type === 'output' ? NODE_WIDTH : 0);
   if (type === 'output') {
     const outputs = getNodeOutputItems(node);
@@ -1520,6 +1576,26 @@ onUnmounted(() => {
 .icon-danger {
   border-color: #f8d7da;
   color: #b02a5a;
+}
+
+.btn-stop-execution {
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-stop-execution svg {
+  width: 1rem;
+  height: 1rem;
+  fill: #ffffff;
+}
+
+.btn-stop-execution:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .icon-danger:hover {
