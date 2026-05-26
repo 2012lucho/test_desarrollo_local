@@ -226,14 +226,22 @@ const zoomStep = 0.1;
 const canvasTransformStyle = computed(() => ({
   transform: `scale(${zoom.value})`,
   transformOrigin: '0 0',
+  width: `${canvasWidth.value}px`,
+  height: `${canvasHeight.value}px`,
 }));
 
 const NODE_WIDTH = 220;
 const NODE_HEIGHT = 110;
 const HANDLE_Y = 75;
 
-const canvasWidth = computed(() => Math.max(canvasRect.width, 900));
-const canvasHeight = computed(() => Math.max(canvasRect.height, 500));
+const canvasWidth = computed(() => {
+  const maxNodeX = nodes.value.reduce((max, node) => Math.max(max, node.x + NODE_WIDTH + 60), 0);
+  return Math.max(canvasRect.width, maxNodeX, 900);
+});
+const canvasHeight = computed(() => {
+  const maxNodeY = nodes.value.reduce((max, node) => Math.max(max, node.y + NODE_HEIGHT + 60), 0);
+  return Math.max(canvasRect.height, maxNodeY, 500);
+});
 
 function updateCanvasRect() {
   const el = canvasRef.value;
@@ -1086,8 +1094,10 @@ const tempConnectionPath = computed(() => {
 
 function startNodeDrag(node, event) {
   if (event.target.closest('.handle') || event.target.closest('.btn-close') || event.target.closest('button')) return;
-  const pointerX = (event.clientX - canvasRect.left) / zoom.value;
-  const pointerY = (event.clientY - canvasRect.top) / zoom.value;
+  const scrollLeft = canvasRef.value?.scrollLeft || 0;
+  const scrollTop = canvasRef.value?.scrollTop || 0;
+  const pointerX = (event.clientX - canvasRect.left + scrollLeft) / zoom.value;
+  const pointerY = (event.clientY - canvasRect.top + scrollTop) / zoom.value;
   const offsetX = pointerX - node.x;
   const offsetY = pointerY - node.y;
   draggingNode.value = { node, offsetX, offsetY, pointerId: event.pointerId };
@@ -1096,15 +1106,17 @@ function startNodeDrag(node, event) {
 
 function onCanvasPointerMove(event) {
   updateCanvasRect();
-  const pointerX = (event.clientX - canvasRect.left) / zoom.value;
-  const pointerY = (event.clientY - canvasRect.top) / zoom.value;
+  const scrollLeft = canvasRef.value?.scrollLeft || 0;
+  const scrollTop = canvasRef.value?.scrollTop || 0;
+  const pointerX = (event.clientX - canvasRect.left + scrollLeft) / zoom.value;
+  const pointerY = (event.clientY - canvasRect.top + scrollTop) / zoom.value;
   pointerPos.x = pointerX;
   pointerPos.y = pointerY;
 
   if (draggingNode.value) {
     const { node, offsetX, offsetY } = draggingNode.value;
-    node.x = Math.max(0, Math.min(canvasRect.width / zoom.value - NODE_WIDTH, pointerX - offsetX));
-    node.y = Math.max(0, Math.min(canvasRect.height / zoom.value - NODE_HEIGHT, pointerY - offsetY));
+    node.x = Math.max(0, Math.min(canvasWidth.value - NODE_WIDTH, pointerX - offsetX));
+    node.y = Math.max(0, Math.min(canvasHeight.value - NODE_HEIGHT, pointerY - offsetY));
   }
 }
 
@@ -1288,7 +1300,7 @@ onUnmounted(() => {
   min-height: 0;
   border: 1px solid #d8e2ef;
   border-radius: 1rem;
-  overflow: hidden;
+  overflow: auto;
   background: #f8fbff;
 }
 
