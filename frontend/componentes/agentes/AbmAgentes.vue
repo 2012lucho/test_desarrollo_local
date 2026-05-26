@@ -35,7 +35,13 @@
         <svg class="canvas-svg" :width="canvasWidth" :height="canvasHeight">
           <defs>
             <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#2c7be5" />
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
+            </marker>
+            <marker id="arrow-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
+            </marker>
+            <marker id="arrow-yellow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
             </marker>
           </defs>
 
@@ -43,8 +49,8 @@
             v-for="conexion in conexiones"
             :key="conexion.id"
             :d="connectionPath(conexion)"
-            class="connection-line"
-            marker-end="url(#arrow)"
+            :class="connectionClass(conexion)"
+            :marker-end="connectionMarker(conexion)"
           />
 
           <path
@@ -65,7 +71,7 @@
           v-for="node in nodes"
           :key="node.id"
           class="node-card"
-          :class="{ 'node-card--initial': nodeIsInitial(node) }"
+          :class="nodeClasses(node)"
           :style="nodeStyle(node)"
           @pointerdown="startNodeDrag(node, $event)"
         >
@@ -179,6 +185,11 @@ const bloquesMap = computed(() => Object.fromEntries(availableBloques.value.map(
 const hasSelectedFlujo = computed(() => selectedFlujo.value !== null && selectedFlujo.value !== undefined && selectedFlujo.value !== '');
 const conexiones = ref([]);
 const lastNodeExecutionRecords = ref({});
+const executionState = reactive({
+  requestId: null,
+  currentNodeId: null,
+});
+const finishedNodeIds = ref([]);
 const connectionStart = ref(null);
 const toolbar = reactive({
   x: 20,
@@ -1005,6 +1016,73 @@ function handleFlowPartial(data) {
   message.text = String(data.text ?? message.text);
 }
 
+function resetExecutionState() {
+  executionState.requestId = null;
+  executionState.currentNodeId = null;
+  finishedNodeIds.value = [];
+}
+
+function handleNodeExecutionStarted(data) {
+  if (!data || Number(data.id_flujo) !== Number(selectedFlujo.value)) return;
+  if (data.requestId && data.requestId !== executionState.requestId) {
+    // nueva ejecución — limpiar estado pero no borrar nodos terminados
+    executionState.requestId = data.requestId;
+    executionState.currentNodeId = null;
+    finishedNodeIds.value = [];
+  }
+  executionState.currentNodeId = Number(data.nodeId);
+}
+
+function handleNodeExecutionFinished(data) {
+  if (!data || Number(data.id_flujo) !== Number(selectedFlujo.value)) return;
+  if (data.requestId && executionState.requestId && data.requestId !== executionState.requestId) return;
+  const nodeId = Number(data.nodeId);
+  if (!finishedNodeIds.value.includes(nodeId)) {
+    finishedNodeIds.value = [...finishedNodeIds.value, nodeId];
+  }
+  if (executionState.currentNodeId === nodeId) {
+    executionState.currentNodeId = null;
+  }
+}
+
+watch(selectedFlujo, () => {
+  resetExecutionState();
+});
+
+
+function connectionClass(conexion) {
+  const sourceId = Number(conexion.id_nodo_origen);
+  const targetId = Number(conexion.id_nodo_destino);
+  if (sourceId === executionState.currentNodeId) {
+    return 'connection-line connection-line--executing';
+  }
+  if (finishedNodeIds.value.includes(sourceId) || finishedNodeIds.value.includes(targetId)) {
+    return 'connection-line connection-line--finished';
+  }
+  return 'connection-line';
+}
+
+function connectionMarker(conexion) {
+  const sourceId = Number(conexion.id_nodo_origen);
+  const targetId = Number(conexion.id_nodo_destino);
+  if (sourceId === executionState.currentNodeId) {
+    return 'url(#arrow-green)';
+  }
+  if (finishedNodeIds.value.includes(sourceId) || finishedNodeIds.value.includes(targetId)) {
+    return 'url(#arrow-yellow)';
+  }
+  return 'url(#arrow)';
+}
+
+function nodeClasses(node) {
+  const id = Number(node.id);
+  return {
+    'node-card--initial': nodeIsInitial(node),
+    'node-card--executing': id === executionState.currentNodeId,
+    'node-card--finished': finishedNodeIds.value.includes(id),
+  };
+}
+
 function startConnection(node, output, outputIndex) {
   if (!nodeProvidesOutput(node)) return;
   const outputLabel = output?.name ? String(output.name) : getNodeLabel(node);
@@ -1158,6 +1236,8 @@ onMounted(() => {
   socket.on('agentes_tipo_bloques_especiales:changed', loadBloquesEspeciales);
   socket.on('agentes_flujos:changed', cargarFlujos);
   socket.on('agentes_nodo_flujo_ejecucion:partial', handleFlowPartial);
+  socket.on('agentes_nodo_flujo_ejecucion:node_started', handleNodeExecutionStarted);
+  socket.on('agentes_nodo_flujo_ejecucion:node_finished', handleNodeExecutionFinished);
   window.addEventListener('pointermove', onGlobalPointerMove);
   window.addEventListener('pointerup', onGlobalPointerUp);
 });
@@ -1171,6 +1251,8 @@ onUnmounted(() => {
   socket.off('agentes_tipo_bloques_especiales:changed', loadBloquesEspeciales);
   socket.off('agentes_flujos:changed', cargarFlujos);
   socket.off('agentes_nodo_flujo_ejecucion:partial', handleFlowPartial);
+  socket.off('agentes_nodo_flujo_ejecucion:node_started', handleNodeExecutionStarted);
+  socket.off('agentes_nodo_flujo_ejecucion:node_finished', handleNodeExecutionFinished);
   socket.disconnect();
 });
 </script>
@@ -1351,6 +1433,16 @@ onUnmounted(() => {
   box-shadow: 0 1rem 2rem rgba(10, 37, 82, 0.06);
   cursor: grab;
   user-select: none;
+}
+
+.node-card.node-card--executing {
+  border: 2px solid #28a745;
+  box-shadow: 0 0 0 4px rgba(40, 167, 69, 0.22);
+}
+
+.node-card.node-card--finished {
+  border: 2px solid #f2c94c;
+  box-shadow: 0 0 0 4px rgba(242, 201, 76, 0.22);
 }
 
 .node-card:active {
@@ -1591,6 +1683,21 @@ onUnmounted(() => {
   stroke: #2c7be5;
   stroke-width: 3;
   opacity: 0.85;
+  color: #2c7be5;
+}
+
+.connection-line--executing {
+  stroke: #28a745;
+  stroke-width: 4;
+  opacity: 1;
+  color: #28a745;
+}
+
+.connection-line--finished {
+  stroke: #f2c94c;
+  stroke-width: 4;
+  opacity: 1;
+  color: #f2c94c;
 }
 
 .connection-temp {

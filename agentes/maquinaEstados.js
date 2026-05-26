@@ -91,6 +91,58 @@ function buildConnectionMap(conexiones) {
   }, {});
 }
 
+function getValueFromPath(source, path) {
+  if (source == null || typeof path !== 'string' || !path.trim()) return null;
+  return String(path)
+    .split('.')
+    .filter((segment) => segment !== '')
+    .reduce((current, segment) => {
+      if (current == null || typeof current !== 'object') return null;
+      if (Array.isArray(current)) {
+        return /^\\d+$/.test(segment) ? current[Number(segment)] : null;
+      }
+      return Object.prototype.hasOwnProperty.call(current, segment) ? current[segment] : null;
+    }, source);
+}
+
+function parseComparisonValue(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  const lower = trimmed.toLowerCase();
+  if (lower === 'true') return true;
+  if (lower === 'false') return false;
+  if (/^[+-]?\d+(?:\.\d+)?$/.test(trimmed)) {
+    const numberValue = Number(trimmed);
+    return Number.isFinite(numberValue) ? numberValue : trimmed;
+  }
+  return trimmed;
+}
+
+function compareValues(left, right, operator = '==') {
+  const a = parseComparisonValue(left);
+  const b = parseComparisonValue(right);
+  switch (String(operator || '').trim()) {
+    case '!=':
+    case '<>':
+    case '!==':
+      return a !== b;
+    case '>=':
+      return a >= b;
+    case '<=':
+      return a <= b;
+    case '>':
+      return a > b;
+    case '<':
+      return a < b;
+    case '==':
+    case '=':
+    case '===':
+    default:
+      return a === b;
+  }
+}
+
 async function executeNode(node, dataEntrada, id_ejecucion, options = {}) {
   const { socket = null, requestId = null } = options;
   const fechaInicio = new Date();
@@ -234,6 +286,18 @@ async function executeNode(node, dataEntrada, id_ejecucion, options = {}) {
     return { dataSalida, fechaInicio, fechaFin: new Date() };
   }
 
+  const isIf = tipoBloque === 'IF' || nombreNodo === 'IF';
+  if (isIf) {
+    const campoEntrada = String(config?.campo_entrada || '').trim();
+    const operador = String(config?.operador || '==').trim();
+    const compararCon = config?.comparar_con;
+    const valorEntrada = getValueFromPath(dataEntrada, campoEntrada);
+    const resultadoComparacion = compareValues(valorEntrada, compararCon, operador);
+    const dataSalida = dataEntrada;
+
+    return { dataSalida, fechaInicio, fechaFin: new Date(), ifResult: resultadoComparacion };
+  }
+
   await sleep(1000);
 
   const dataSalida = {
@@ -255,7 +319,17 @@ async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesB
     return [];
   }
 
-  const { dataSalida, fechaInicio, fechaFin } = await executeNode(node, dataEntrada, id_ejecucion, { socket, requestId });
+  if (socket) {
+    socket.emit('agentes_nodo_flujo_ejecucion:node_started', {
+      requestId,
+      id_flujo,
+      id_ejecucion,
+      nodeId: node.id,
+      nodeName: node.nombre,
+    });
+  }
+
+  const { dataSalida, fechaInicio, fechaFin, ifResult } = await executeNode(node, dataEntrada, id_ejecucion, { socket, requestId });
 
   if (DEBUG_FLOW_LOGS) {
     console.log('[EJECUCION_FLUJO] Nodo:', {
@@ -277,22 +351,46 @@ async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesB
     fechaFin,
   });
 
-  const nextConnections = connectionsByOrigin[nodeId] || [];
+  if (socket) {
+    socket.emit('agentes_nodo_flujo_ejecucion:node_finished', {
+      requestId,
+      id_flujo,
+      id_ejecucion,
+      nodeId: node.id,
+      nodeName: node.nombre,
+      ifResult,
+    });
+  }
+
+  let nextConnections = connectionsByOrigin[nodeId] || [];
+  const isIfNode = String(node.tipo_bloque_nombre || '').trim().toUpperCase() === 'IF' || String(node.nombre || '').trim().toUpperCase() === 'IF';
+  if (isIfNode) {
+    const resultadoComparacion = Boolean(ifResult);
+    const outputName = resultadoComparacion ? 'true' : 'false';
+    const filteredConnections = nextConnections.filter((conexion) => String(conexion.name_salida_nodo || '').trim().toLowerCase() === outputName);
+    if (filteredConnections.length) {
+      nextConnections = filteredConnections;
+    }
+  }
+
   if (!nextConnections.length) {
     return [{ nodo: node.id, dataSalida }];
   }
 
   const nextVisited = [...visited, nodeId];
+  const nextDataEntrada = isIfNode ? dataEntrada : dataSalida;
   const results = [];
   for (const conexion of nextConnections) {
     const childResults = await executePath({
       id_flujo,
       id_ejecucion,
       nodeId: Number(conexion.id_nodo_destino),
-      dataEntrada: dataSalida,
+      dataEntrada: nextDataEntrada,
       nodesById,
       connectionsByOrigin,
       visited: nextVisited,
+      socket,
+      requestId,
     });
     if (Array.isArray(childResults)) {
       results.push(...childResults);
