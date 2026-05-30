@@ -206,6 +206,7 @@ const executionState = reactive({
 const isStoppingExecution = ref(false);
 const isFlowRunning = computed(() => Boolean(executionState.requestId));
 const finishedNodeIds = ref([]);
+const executedConnectionIds = ref([]);
 const connectionStart = ref(null);
 const toolbar = reactive({
   x: 20,
@@ -1081,6 +1082,16 @@ function resetExecutionState() {
   executionState.requestId = null;
   executionState.currentNodeId = null;
   finishedNodeIds.value = [];
+  executedConnectionIds.value = [];
+}
+
+function handleConnectionTaken(data) {
+  if (!data || Number(data.id_flujo) !== Number(selectedFlujo.value)) return;
+  const connectionId = Number(data.connectionId || data.id || 0);
+  if (!connectionId) return;
+  if (!executedConnectionIds.value.includes(connectionId)) {
+    executedConnectionIds.value = [...executedConnectionIds.value, connectionId];
+  }
 }
 
 function detenerEjecucion() {
@@ -1109,6 +1120,7 @@ function handleNodeExecutionStarted(data) {
     executionState.requestId = data.requestId;
     executionState.currentNodeId = null;
     finishedNodeIds.value = [];
+    executedConnectionIds.value = [];
   }
   executionState.currentNodeId = Number(data.nodeId);
 }
@@ -1131,25 +1143,25 @@ watch(selectedFlujo, () => {
 
 
 function connectionClass(conexion) {
+  const connectionId = Number(conexion.id);
+  if (executedConnectionIds.value.includes(connectionId)) {
+    return 'connection-line connection-line--finished';
+  }
   const sourceId = Number(conexion.id_nodo_origen);
-  const targetId = Number(conexion.id_nodo_destino);
   if (sourceId === executionState.currentNodeId) {
     return 'connection-line connection-line--executing';
-  }
-  if (finishedNodeIds.value.includes(sourceId) || finishedNodeIds.value.includes(targetId)) {
-    return 'connection-line connection-line--finished';
   }
   return 'connection-line';
 }
 
 function connectionMarker(conexion) {
+  const connectionId = Number(conexion.id);
+  if (executedConnectionIds.value.includes(connectionId)) {
+    return 'url(#arrow-yellow)';
+  }
   const sourceId = Number(conexion.id_nodo_origen);
-  const targetId = Number(conexion.id_nodo_destino);
   if (sourceId === executionState.currentNodeId) {
     return 'url(#arrow-green)';
-  }
-  if (finishedNodeIds.value.includes(sourceId) || finishedNodeIds.value.includes(targetId)) {
-    return 'url(#arrow-yellow)';
   }
   return 'url(#arrow)';
 }
@@ -1318,6 +1330,7 @@ onMounted(() => {
   socket.on('agentes_nodo_flujo_ejecucion:partial', handleFlowPartial);
   socket.on('agentes_nodo_flujo_ejecucion:node_started', handleNodeExecutionStarted);
   socket.on('agentes_nodo_flujo_ejecucion:node_finished', handleNodeExecutionFinished);
+  socket.on('agentes_nodo_flujo_ejecucion:connection_taken', handleConnectionTaken);
   window.addEventListener('pointermove', onGlobalPointerMove);
   window.addEventListener('pointerup', onGlobalPointerUp);
 });
@@ -1333,6 +1346,7 @@ onUnmounted(() => {
   socket.off('agentes_nodo_flujo_ejecucion:partial', handleFlowPartial);
   socket.off('agentes_nodo_flujo_ejecucion:node_started', handleNodeExecutionStarted);
   socket.off('agentes_nodo_flujo_ejecucion:node_finished', handleNodeExecutionFinished);
+  socket.off('agentes_nodo_flujo_ejecucion:connection_taken', handleConnectionTaken);
   socket.disconnect();
 });
 </script>

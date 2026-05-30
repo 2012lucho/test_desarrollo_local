@@ -218,8 +218,14 @@ async function executeNode(node, dataEntrada, id_ejecucion, options = {}) {
   if (isFormatJson) {
     let parsed = null;
     if (typeof dataEntrada === 'string') {
+      let cleaned = dataEntrada.trim();
+      const codeBlockRegex = /^```(?:json)?\s*\n?([\s\S]*?)\n?```\s*$/;
+      const match = cleaned.match(codeBlockRegex);
+      if (match) {
+        cleaned = match[1].trim();
+      }
       try {
-        parsed = JSON.parse(dataEntrada);
+        parsed = JSON.parse(cleaned);
       } catch (error) {
         parsed = null;
       }
@@ -409,6 +415,17 @@ async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesB
   const nextDataEntrada = isIfNode ? dataEntrada : dataSalida;
   const results = [];
   for (const conexion of nextConnections) {
+    if (socket) {
+      socket.emit('agentes_nodo_flujo_ejecucion:connection_taken', {
+        requestId,
+        id_flujo,
+        id_ejecucion,
+        connectionId: conexion.id,
+        fromNodeId: node.id,
+        toNodeId: Number(conexion.id_nodo_destino),
+      });
+    }
+
     const childResults = await executePath({
       id_flujo,
       id_ejecucion,
