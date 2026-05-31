@@ -129,14 +129,16 @@
             </button>
           </div>
           <div
+            v-for="(input, inputIndex) in getNodeInputItems(node)"
+            :key="`${node.id}-input-${inputIndex}`"
             class="handle input-handle"
-            :data-handle-type="'input'"
+            :data-entrada-name="input.name"
             :class="{ 'handle-disabled': !nodeAcceptsInput(node) }"
-            @pointerdown.stop.prevent="nodeAcceptsInput(node) && finishConnection(node)"
+            @pointerdown.stop.prevent="nodeAcceptsInput(node) && finishConnection(node, input.name)"
             @click.stop
           >
             <span class="handle-dot" />
-            Entrada
+            {{ input.name }}
           </div>
           <div
             v-for="(output, outputIndex) in getNodeOutputItems(node)"
@@ -215,6 +217,7 @@ const executionState = reactive({
 const isStoppingExecution = ref(false);
 const isFlowRunning = computed(() => Boolean(executionState.requestId));
 const finishedNodeIds = ref([]);
+const errorNodeIds = ref([]);
 const executedConnectionIds = ref([]);
 const connectionStart = ref(null);
 const toolbar = reactive({
@@ -755,6 +758,21 @@ function getNodeOutputItems(node) {
   return [{ name: String(configSalida) }];
 }
 
+function getNodeInputItems(node) {
+  const agente = agentesMap.value[node.id];
+  const bloque = agente ? bloquesMap.value[agente.id_tipo_bloque] : null;
+  if (!bloque) return [{ name: 'Entrada' }];
+  const configEntrada = parseConfigValue(bloque.config_entrada);
+  if (configEntrada === null) return [];
+  if (Array.isArray(configEntrada) && configEntrada.length === 0) return [];
+  if (configValueHasChatType(configEntrada)) return [];
+  if (!Array.isArray(configEntrada)) return [{ name: 'Entrada' }];
+  return configEntrada.map((item) => ({
+    name: item.name || 'Entrada',
+    model: item.model || 'any',
+  }));
+}
+
 function findNodeElement(node) {
   if (!canvasRef.value || !node) return null;
   return canvasRef.value.querySelector(`[data-node-id="${String(node.id)}"]`);
@@ -783,7 +801,7 @@ function getHandleCenterPosition(node, handleElement, type) {
   };
 }
 
-function connectorPosition(node, type, outputIndex = 0) {
+function connectorPosition(node, type, outputIndex = 0, entradaName = null) {
   if (!node) return null;
   const nodeElement = findNodeElement(node);
   if (nodeElement) {
@@ -795,7 +813,8 @@ function connectorPosition(node, type, outputIndex = 0) {
       if (position) return position;
     }
     if (type === 'input') {
-      const handle = nodeElement.querySelector('[data-handle-type="input"]');
+      const selector = entradaName ? `[data-entrada-name="${entradaName}"]` : '[data-entrada-name]';
+      const handle = nodeElement.querySelector(selector);
       const position = getHandleCenterPosition(node, handle, 'input');
       if (position) return position;
     }
@@ -1126,6 +1145,7 @@ function resetExecutionState() {
   executionState.requestId = null;
   executionState.currentNodeId = null;
   finishedNodeIds.value = [];
+  errorNodeIds.value = [];
   executedConnectionIds.value = [];
 }
 
@@ -1216,7 +1236,16 @@ function nodeClasses(node) {
     'node-card--initial': nodeIsInitial(node),
     'node-card--executing': id === executionState.currentNodeId,
     'node-card--finished': finishedNodeIds.value.includes(id),
+    'node-card--error': errorNodeIds.value.includes(id),
   };
+}
+
+function handleNodeError(data) {
+  if (!data || Number(data.id_flujo) !== Number(selectedFlujo.value)) return;
+  const nodeId = Number(data.nodeId);
+  if (!errorNodeIds.value.includes(nodeId)) {
+    errorNodeIds.value = [...errorNodeIds.value, nodeId];
+  }
 }
 
 function startConnection(node, output, outputIndex) {
@@ -1230,12 +1259,12 @@ function startConnection(node, output, outputIndex) {
   };
 }
 
-function finishConnection(node) {
+function finishConnection(node, entradaName = null) {
   if (!connectionStart.value) return;
   if (node.id === connectionStart.value.fromId) return;
   if (!nodeAcceptsInput(node)) return;
   const exists = conexiones.value.some(
-    (con) => con.id_nodo_origen === connectionStart.value.fromId && con.id_nodo_destino === node.id && con.name_salida_nodo === connectionStart.value.name_salida_nodo,
+    (con) => con.id_nodo_origen === connectionStart.value.fromId && con.id_nodo_destino === node.id && con.name_salida_nodo === connectionStart.value.name_salida_nodo && con.name_entrada_nodo === entradaName,
   );
   if (!exists) {
     const payload = {
@@ -1243,6 +1272,7 @@ function finishConnection(node) {
       id_nodo_destino: node.id,
       id_flujo: selectedFlujo.value,
       name_salida_nodo: connectionStart.value.name_salida_nodo,
+      name_entrada_nodo: entradaName,
     };
     socket.emit('agentes_nodo_flujo_coneccion:create', payload, (resp) => {
       if (resp.ok && resp.data) {
@@ -1357,7 +1387,7 @@ function getConnectionOutputIndex(connection) {
 function connectionPath(connection) {
   const fromNode = nodes.value.find((n) => n.id === connection.from);
   const from = connectorPosition(fromNode, 'output', getConnectionOutputIndex(connection));
-  const to = connectorPosition(nodes.value.find((n) => n.id === connection.to), 'input');
+  const to = connectorPosition(nodes.value.find((n) => n.id === connection.to), 'input', 0, connection.name_entrada_nodo || null);
   if (!from || !to) return '';
   const midX = from.x + (to.x - from.x) / 2;
   return `M ${from.x} ${from.y} C ${midX} ${from.y} ${midX} ${to.y} ${to.x} ${to.y}`;
@@ -1440,6 +1470,7 @@ onMounted(() => {
   socket.on('agentes_nodo_flujo_ejecucion:node_started', handleNodeExecutionStarted);
   socket.on('agentes_nodo_flujo_ejecucion:node_finished', handleNodeExecutionFinished);
   socket.on('agentes_nodo_flujo_ejecucion:connection_taken', handleConnectionTaken);
+  socket.on('agentes_nodo_flujo_ejecucion:node_error', handleNodeError);
   window.addEventListener('pointermove', onGlobalPointerMove);
   window.addEventListener('pointerup', onGlobalPointerUp);
   if (canvasRef.value) {
@@ -1459,6 +1490,7 @@ onUnmounted(() => {
   socket.off('agentes_nodo_flujo_ejecucion:node_started', handleNodeExecutionStarted);
   socket.off('agentes_nodo_flujo_ejecucion:node_finished', handleNodeExecutionFinished);
   socket.off('agentes_nodo_flujo_ejecucion:connection_taken', handleConnectionTaken);
+  socket.off('agentes_nodo_flujo_ejecucion:node_error', handleNodeError);
   socket.disconnect();
   if (canvasRef.value) {
     canvasRef.value.removeEventListener('scroll', onCanvasScroll);
@@ -1678,6 +1710,12 @@ onUnmounted(() => {
 .node-card.node-card--finished {
   border: 2px solid #f2c94c;
   box-shadow: 0 0 0 4px rgba(242, 201, 76, 0.22);
+}
+
+.node-card.node-card--error {
+  border: 2px solid #dc3545;
+  box-shadow: 0 0 0 4px rgba(220, 53, 69, 0.22);
+  background: #fff5f5;
 }
 
 .node-card:active {

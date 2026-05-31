@@ -160,6 +160,32 @@ function compareValues(left, right, operator = '==') {
   }
 }
 
+function resolveMustache(expr, data) {
+  if (typeof expr !== 'string') return expr;
+  return expr.replace(/\{\{([^}]+)\}\}/g, (match, path) => {
+    const resolved = getValueFromPath(data, path.trim());
+    return resolved !== null && resolved !== undefined ? String(resolved) : match;
+  });
+}
+
+function stripQuotes(str) {
+  const s = str.trim();
+  if ((s.startsWith("'") && s.endsWith("'")) || (s.startsWith('"') && s.endsWith('"'))) {
+    return s.slice(1, -1);
+  }
+  return s;
+}
+
+function evaluateCondition(condition, dataEntrada) {
+  const resolved = resolveMustache(condition, dataEntrada);
+  const match = resolved.match(/^\s*(.+?)\s*(==|!=|<>|!==|>=|<=|>|<|=|===)\s*(.+?)\s*$/);
+  if (!match) return false;
+  const left = stripQuotes(match[1]);
+  const operator = match[2];
+  const right = stripQuotes(match[3]);
+  return compareValues(left, right, operator);
+}
+
 async function executeNode(node, dataEntrada, id_ejecucion, options = {}) {
   const { socket = null, requestId = null, signal = null } = options;
   if (signal?.aborted) throw createAbortError();
@@ -317,6 +343,21 @@ async function executeNode(node, dataEntrada, id_ejecucion, options = {}) {
 
   if (signal?.aborted) throw createAbortError();
 
+  const isSwitch = tipoBloque === 'SWITCH' || nombreNodo === 'SWITCH';
+  if (isSwitch) {
+    const condiciones = Array.isArray(config?.condiciones_switch) ? config.condiciones_switch : [];
+    let outputName = 'default';
+    for (const cond of condiciones) {
+      const condText = String(cond.condicion || '').trim();
+      if (!condText) continue;
+      if (evaluateCondition(condText, dataEntrada)) {
+        outputName = String(cond.nombre_salida || 'default').trim();
+        break;
+      }
+    }
+    return { dataSalida: dataEntrada, fechaInicio, fechaFin: new Date(), ifResult: outputName };
+  }
+
   const isIf = tipoBloque === 'IF' || nombreNodo === 'IF';
   if (isIf) {
     const campoEntrada = String(config?.campo_entrada || '').trim();
@@ -340,14 +381,18 @@ async function executeNode(node, dataEntrada, id_ejecucion, options = {}) {
   return { dataSalida, fechaInicio, fechaFin: new Date() };
 }
 
-async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesById, connectionsByOrigin, visited = [], socket = null, requestId = null, signal = null }) {
+async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesById, connectionsByOrigin, visited = [], socket = null, requestId = null, signal = null, loopStates = new Map(), entradaName = null }) {
   if (signal?.aborted) throw createAbortError();
-  if (visited.includes(nodeId)) {
-    return [];
-  }
 
   const node = nodesById[nodeId];
   if (!node) {
+    return [];
+  }
+
+  const isLoop = String(node.tipo_bloque_nombre || '').trim().toUpperCase() === 'LOOP' || String(node.nombre || '').trim().toUpperCase() === 'LOOP';
+
+  // LOOP nodes must be re-entered via fin_iteracion, skip visited check
+  if (!isLoop && visited.includes(nodeId)) {
     return [];
   }
 
@@ -360,6 +405,15 @@ async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesB
       nodeName: node.nombre,
     });
   }
+
+  // --- LOOP special handling ---
+  if (isLoop) {
+    return await executeLoopPath({
+      id_flujo, id_ejecucion, node, dataEntrada, nodesById, connectionsByOrigin,
+      visited, socket, requestId, signal, loopStates, entradaName,
+    });
+  }
+  // --- End LOOP ---
 
   const { dataSalida, fechaInicio, fechaFin, ifResult } = await executeNode(node, dataEntrada, id_ejecucion, { socket, requestId, signal });
 
@@ -407,12 +461,21 @@ async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesB
     }
   }
 
+  const isSwitchNode = String(node.tipo_bloque_nombre || '').trim().toUpperCase() === 'SWITCH' || String(node.nombre || '').trim().toUpperCase() === 'SWITCH';
+  if (isSwitchNode) {
+    const outputName = String(ifResult || 'default').trim().toLowerCase();
+    const filteredConnections = nextConnections.filter((conexion) => String(conexion.name_salida_nodo || '').trim().toLowerCase() === outputName);
+    if (filteredConnections.length) {
+      nextConnections = filteredConnections;
+    }
+  }
+
   if (!nextConnections.length) {
     return [{ nodo: node.id, dataSalida }];
   }
 
   const nextVisited = [...visited, nodeId];
-  const nextDataEntrada = isIfNode ? dataEntrada : dataSalida;
+  const nextDataEntrada = isIfNode || isSwitchNode ? dataEntrada : dataSalida;
   const results = [];
   for (const conexion of nextConnections) {
     if (socket) {
@@ -437,6 +500,8 @@ async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesB
       socket,
       requestId,
       signal,
+      loopStates,
+      entradaName: conexion.name_entrada_nodo || null,
     });
     if (Array.isArray(childResults)) {
       results.push(...childResults);
@@ -444,6 +509,147 @@ async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesB
   }
 
   return results.length ? results : [{ nodo: node.id, dataSalida }];
+}
+
+async function executeLoopPath({ id_flujo, id_ejecucion, node, dataEntrada, nodesById, connectionsByOrigin, visited, socket, requestId, signal, loopStates, entradaName }) {
+  if (signal?.aborted) throw createAbortError();
+
+  const emitNodeEvent = (eventName, extra = {}) => {
+    if (socket) {
+      socket.emit(eventName, {
+        requestId,
+        id_flujo,
+        id_ejecucion,
+        nodeId: node.id,
+        nodeName: node.nombre,
+        ...extra,
+      });
+    }
+  };
+
+  const emitNodeErrorAndThrow = (errorMsg) => {
+    if (socket) {
+      socket.emit('agentes_nodo_flujo_ejecucion:node_error', {
+        requestId,
+        id_flujo,
+        id_ejecucion,
+        nodeId: node.id,
+        nodeName: node.nombre,
+        error: errorMsg,
+      });
+    }
+    throw new Error(`LOOP node ${node.id}: ${errorMsg}`);
+  };
+
+  let outputName = '';
+  let outputData = null;
+  const state = loopStates.get(node.id) || null;
+
+  if (entradaName === 'entrada' || !entradaName) {
+    // Initial call with array
+    if (!Array.isArray(dataEntrada)) {
+      emitNodeErrorAndThrow(`entrada expects an array, got ${typeof dataEntrada === 'object' ? JSON.stringify(dataEntrada) : typeof dataEntrada}`);
+    }
+    if (state) {
+      emitNodeErrorAndThrow('an active loop is already in progress, cannot receive a new array');
+    }
+    if (dataEntrada.length === 0) {
+      outputName = 'fin_loop';
+      outputData = null;
+    } else {
+      const items = [...dataEntrada];
+      const first = items.shift();
+      loopStates.set(node.id, { items, loopVisited: [...visited] });
+      outputName = 'loop';
+      outputData = first;
+    }
+  } else if (entradaName === 'fin_iteracion') {
+    // Advance signal
+    if (!state) {
+      emitNodeErrorAndThrow('received fin_iteracion but no active loop');
+    }
+    const { items, loopVisited } = state;
+    if (items.length === 0) {
+      outputName = 'fin_loop';
+      outputData = dataEntrada;
+      loopStates.delete(node.id);
+    } else {
+      const next = items.shift();
+      loopStates.set(node.id, { items, loopVisited });
+      outputName = 'loop';
+      outputData = next;
+    }
+  }
+
+  const fechaInicio = new Date();
+
+  if (DEBUG_FLOW_LOGS) {
+    console.log('[EJECUCION_FLUJO] Nodo:', {
+      id: node.id,
+      nombre: node.nombre,
+      tipo: 'LOOP',
+      dataEntrada,
+      dataSalida: { name: outputName, value: outputData },
+    });
+  }
+
+  await insertRegistro({
+    id_flujo,
+    id_ejecucion,
+    node,
+    dataEntrada,
+    dataSalida: { name: outputName, value: outputData },
+    fechaInicio,
+    fechaFin: new Date(),
+  });
+
+  emitNodeEvent('agentes_nodo_flujo_ejecucion:node_finished', {
+    outputName,
+  });
+
+  if (signal?.aborted) throw createAbortError();
+
+  // Find connections matching the output name
+  const matchingConnections = (connectionsByOrigin[node.id] || [])
+    .filter((conexion) => String(conexion.name_salida_nodo || '').trim() === outputName);
+
+  if (!matchingConnections.length) {
+    return [{ nodo: node.id, dataSalida: { name: outputName, value: outputData } }];
+  }
+
+  // Use loopVisited for iterations (resets visited per iteration so downstream nodes can be re-visited)
+  // For fin_loop, use current visited (loop is done)
+  const loopStateAfter = loopStates.get(node.id);
+  const nextVisited = (outputName === 'loop' && loopStateAfter?.loopVisited) ? loopStateAfter.loopVisited : visited;
+  const results = [];
+
+  for (const conexion of matchingConnections) {
+    emitNodeEvent('agentes_nodo_flujo_ejecucion:connection_taken', {
+      connectionId: conexion.id,
+      fromNodeId: node.id,
+      toNodeId: Number(conexion.id_nodo_destino),
+    });
+
+    const childResults = await executePath({
+      id_flujo,
+      id_ejecucion,
+      nodeId: Number(conexion.id_nodo_destino),
+      dataEntrada: outputData,
+      nodesById,
+      connectionsByOrigin,
+      visited: nextVisited,
+      socket,
+      requestId,
+      signal,
+      loopStates,
+      entradaName: conexion.name_entrada_nodo || null,
+    });
+    if (Array.isArray(childResults)) {
+      results.push(...childResults);
+    }
+  }
+
+  return results.length ? results : [{ nodo: node.id, dataSalida: { name: outputName, value: outputData } }];
 }
 
 async function runFlow({ id_flujo, id_nodo_inicio, data_entrada = null, socket = null, requestId = null }) {
@@ -457,6 +663,7 @@ async function runFlow({ id_flujo, id_nodo_inicio, data_entrada = null, socket =
   }
 
   const controller = new AbortController();
+  const loopStates = new Map();
   if (requestId) {
     activeFlowControllers.set(requestId, controller);
   }
@@ -473,6 +680,7 @@ async function runFlow({ id_flujo, id_nodo_inicio, data_entrada = null, socket =
       socket,
       requestId,
       signal: controller.signal,
+      loopStates,
     });
 
     const fecha_hora_fin = await finishEjecucion(ejecucion.id);

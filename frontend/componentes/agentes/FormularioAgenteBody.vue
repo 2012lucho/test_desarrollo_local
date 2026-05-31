@@ -83,6 +83,21 @@
                 @input="(event) => setConfigValue(option.field, event.target.value)"
               />
             </div>
+            <div v-else-if="option.type === 'number_input'" class="mb-3">
+              <label :for="`config-option-${option.field}`">
+                {{ option.label || option.field }}
+                <span v-if="option.required" class="text-danger">*</span>
+              </label>
+              <input
+                :id="`config-option-${option.field}`"
+                type="number"
+                class="form-control"
+                :value="getConfigValue(option.field)"
+                :placeholder="option.placeholder || 'Ingrese valor'"
+                :min="option.min !== undefined ? option.min : 0"
+                @input="(event) => setConfigValue(option.field, Number(event.target.value))"
+              />
+            </div>
             <div v-else-if="option.type === 'checkbox'" class="form-check">
               <input
                 :id="`config-option-${option.field}`"
