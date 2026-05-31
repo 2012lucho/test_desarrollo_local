@@ -195,9 +195,11 @@ import GestionFlujosHeader from './GestionFlujosHeader.vue';
 import GestionFlujos from './GestionFlujos.vue';
 import EjecucionesFlujo from './EjecucionesFlujo.vue';
 import DetalleRegistroNodoEjecucion from './DetalleRegistroNodoEjecucion.vue';
+import { useProyectos } from '../../composables/useProyectos.js';
 
 const socket = io(import.meta.env.VITE_API_URL);
 const { mostrarModal } = useModal();
+const { selectedProject } = useProyectos();
 const canvasRef = ref(null);
 const agentes = ref([]);
 const flujos = ref([]);
@@ -1098,6 +1100,7 @@ function sendChatMessage() {
       id_nodo_inicio: nodeId,
       data_entrada: { mensaje: message },
       requestId,
+      id_proyecto: selectedProject.value,
     }, (resp) => {
       if (!resp.ok) {
         chatMessages.value[placeholderIndex].text = resp.error || 'Error iniciando ejecución de flujo';

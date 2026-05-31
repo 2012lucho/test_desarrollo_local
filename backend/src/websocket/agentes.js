@@ -292,6 +292,7 @@ module.exports = (socket, io) => {
     const id_nodo_inicio = Number(payload?.id_nodo_inicio || 0);
     const data_entrada = payload?.data_entrada ?? null;
     const requestId = payload?.requestId ? String(payload.requestId) : `flow-${Date.now()}-${Math.random()}`;
+    const id_proyecto = Number(payload?.id_proyecto) || null;
 
     if (!id_flujo) {
       return safeCallback(callback, { ok: false, error: 'Id de flujo inválido para iniciar ejecución' });
@@ -301,7 +302,7 @@ module.exports = (socket, io) => {
     }
 
     try {
-      const ejecucion = await maquinaEstados.runFlow({ id_flujo, id_nodo_inicio, data_entrada, socket, requestId });
+      const ejecucion = await maquinaEstados.runFlow({ id_flujo, id_nodo_inicio, data_entrada, socket, requestId, id_proyecto });
       safeCallback(callback, { ok: true, data: { ...ejecucion, requestId } });
     } catch (error) {
       console.error('agentes_nodo_flujo_ejecucion:start error', error);

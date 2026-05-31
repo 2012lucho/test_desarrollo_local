@@ -186,8 +186,52 @@ function evaluateCondition(condition, dataEntrada) {
   return compareValues(left, right, operator);
 }
 
+async function getProjectInfo(proyectoId) {
+  const proyecto = await db('proyectos').where({ id: proyectoId }).first();
+  if (!proyecto) return null;
+
+  const subproyectos = await db('subproyectos').where({ proyecto_id: proyectoId }).orderBy('id', 'asc');
+  const subproyectoIds = subproyectos.map((s) => s.id);
+
+  let tecnologias = [];
+  if (subproyectoIds.length) {
+    tecnologias = await db('subproyecto_tecnologias as st')
+      .join('tecnologias as t', 'st.tecnologia_id', 't.id')
+      .whereIn('st.subproyecto_id', subproyectoIds)
+      .select('st.subproyecto_id', 't.id', 't.nombre', 't.color')
+      .orderBy('t.nombre', 'asc');
+  }
+
+  const tecPorSub = tecnologias.reduce((acc, t) => {
+    if (!acc[t.subproyecto_id]) acc[t.subproyecto_id] = [];
+    acc[t.subproyecto_id].push({ id: t.id, nombre: t.nombre, color: t.color });
+    return acc;
+  }, {});
+
+  const subproyectosData = subproyectos.map((s) => ({
+    id: s.id,
+    nombre: s.nombre,
+    descripcion: s.descripcion,
+    tipo: s.tipo,
+    tecnologias: tecPorSub[s.id] || [],
+  }));
+
+  return {
+    general: {
+      id: proyecto.id,
+      nombre: proyecto.nombre,
+      descripcion: proyecto.descripcion,
+      repositorio: proyecto.repositorio,
+      directorio_base: proyecto.directorio_base,
+      creado_el: proyecto.creado_el,
+      actualizado_el: proyecto.actualizado_el,
+    },
+    subproyectos: subproyectosData,
+  };
+}
+
 async function executeNode(node, dataEntrada, id_ejecucion, options = {}) {
-  const { socket = null, requestId = null, signal = null } = options;
+  const { socket = null, requestId = null, signal = null, id_proyecto = null } = options;
   if (signal?.aborted) throw createAbortError();
   const fechaInicio = new Date();
   const config = parseNodeConfig(node.config);
@@ -358,6 +402,15 @@ async function executeNode(node, dataEntrada, id_ejecucion, options = {}) {
     return { dataSalida: dataEntrada, fechaInicio, fechaFin: new Date(), ifResult: outputName };
   }
 
+  const isGetInfoProyecto = tipoBloque === 'GET_INFO_PROYECTO' || nombreNodo === 'GET_INFO_PROYECTO';
+  if (isGetInfoProyecto) {
+    const { id_proyecto } = options;
+    const proyectInfo = id_proyecto ? await getProjectInfo(id_proyecto) : null;
+    const baseData = typeof dataEntrada === 'object' && dataEntrada !== null ? { ...dataEntrada } : {};
+    const dataSalida = { ...baseData, proyect_info: proyectInfo };
+    return { dataSalida, fechaInicio, fechaFin: new Date() };
+  }
+
   const isIf = tipoBloque === 'IF' || nombreNodo === 'IF';
   if (isIf) {
     const campoEntrada = String(config?.campo_entrada || '').trim();
@@ -381,7 +434,7 @@ async function executeNode(node, dataEntrada, id_ejecucion, options = {}) {
   return { dataSalida, fechaInicio, fechaFin: new Date() };
 }
 
-async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesById, connectionsByOrigin, visited = [], socket = null, requestId = null, signal = null, loopStates = new Map(), entradaName = null }) {
+async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesById, connectionsByOrigin, visited = [], socket = null, requestId = null, signal = null, loopStates = new Map(), entradaName = null, id_proyecto = null }) {
   if (signal?.aborted) throw createAbortError();
 
   const node = nodesById[nodeId];
@@ -410,12 +463,12 @@ async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesB
   if (isLoop) {
     return await executeLoopPath({
       id_flujo, id_ejecucion, node, dataEntrada, nodesById, connectionsByOrigin,
-      visited, socket, requestId, signal, loopStates, entradaName,
+      visited, socket, requestId, signal, loopStates, entradaName, id_proyecto,
     });
   }
   // --- End LOOP ---
 
-  const { dataSalida, fechaInicio, fechaFin, ifResult } = await executeNode(node, dataEntrada, id_ejecucion, { socket, requestId, signal });
+  const { dataSalida, fechaInicio, fechaFin, ifResult } = await executeNode(node, dataEntrada, id_ejecucion, { socket, requestId, signal, id_proyecto });
 
   if (signal?.aborted) throw createAbortError();
 
@@ -502,6 +555,7 @@ async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesB
       signal,
       loopStates,
       entradaName: conexion.name_entrada_nodo || null,
+      id_proyecto,
     });
     if (Array.isArray(childResults)) {
       results.push(...childResults);
@@ -511,7 +565,7 @@ async function executePath({ id_flujo, id_ejecucion, nodeId, dataEntrada, nodesB
   return results.length ? results : [{ nodo: node.id, dataSalida }];
 }
 
-async function executeLoopPath({ id_flujo, id_ejecucion, node, dataEntrada, nodesById, connectionsByOrigin, visited, socket, requestId, signal, loopStates, entradaName }) {
+async function executeLoopPath({ id_flujo, id_ejecucion, node, dataEntrada, nodesById, connectionsByOrigin, visited, socket, requestId, signal, loopStates, entradaName, id_proyecto = null }) {
   if (signal?.aborted) throw createAbortError();
 
   const emitNodeEvent = (eventName, extra = {}) => {
@@ -643,6 +697,7 @@ async function executeLoopPath({ id_flujo, id_ejecucion, node, dataEntrada, node
       signal,
       loopStates,
       entradaName: conexion.name_entrada_nodo || null,
+      id_proyecto,
     });
     if (Array.isArray(childResults)) {
       results.push(...childResults);
@@ -652,7 +707,7 @@ async function executeLoopPath({ id_flujo, id_ejecucion, node, dataEntrada, node
   return results.length ? results : [{ nodo: node.id, dataSalida: { name: outputName, value: outputData } }];
 }
 
-async function runFlow({ id_flujo, id_nodo_inicio, data_entrada = null, socket = null, requestId = null }) {
+async function runFlow({ id_flujo, id_nodo_inicio, data_entrada = null, socket = null, requestId = null, id_proyecto = null }) {
   const ejecucion = await createEjecucion(id_flujo);
   const { nodos, conexiones } = await loadFlowNodesAndConnections(id_flujo);
   const nodesById = buildNodeMap(nodos);
@@ -681,6 +736,7 @@ async function runFlow({ id_flujo, id_nodo_inicio, data_entrada = null, socket =
       requestId,
       signal: controller.signal,
       loopStates,
+      id_proyecto,
     });
 
     const fecha_hora_fin = await finishEjecucion(ejecucion.id);
