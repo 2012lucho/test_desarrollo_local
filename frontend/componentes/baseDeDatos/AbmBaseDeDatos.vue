@@ -2,9 +2,18 @@
   <div class="basededatos-page">
     <div class="toolbar">
       <div class="toolbar-actions">
-        <button type="button" class="btn" @click="zoomOut">- Alejar</button>
-        <button type="button" class="btn" @click="zoomReset">100%</button>
-        <button type="button" class="btn" @click="zoomIn">+ Acercar</button>
+        <div class="zoom-controls">
+          <button type="button" class="btn" @click="zoomOut">-</button>
+          <button type="button" class="btn" @click="zoomReset">100%</button>
+          <button type="button" class="btn" @click="zoomIn">+</button>
+        </div>
+        <button type="button" class="btn" :disabled="!selectedProject || !nodes.length" @click="fitView">⟷ Ajustar vista</button>
+        <div class="scroll-controls">
+          <button type="button" class="btn" :disabled="!selectedProject" @click="scrollCanvas(0, -60)" title="Arriba">↑</button>
+          <button type="button" class="btn" :disabled="!selectedProject" @click="scrollCanvas(0, 60)" title="Abajo">↓</button>
+          <button type="button" class="btn" :disabled="!selectedProject" @click="scrollCanvas(-60, 0)" title="Izquierda">←</button>
+          <button type="button" class="btn" :disabled="!selectedProject" @click="scrollCanvas(60, 0)" title="Derecha">→</button>
+        </div>
         <button type="button" class="btn" @click="abrirNuevaTabla">+ Agregar tabla</button>
       </div>
       <div class="toolbar-status">
@@ -19,7 +28,7 @@
     <div v-else-if="loadingProject" class="toolbar-status">
       Cargando tablas de la base de datos...
     </div>
-    <div v-else class="canvas-area" ref="canvasRef" @pointermove="onCanvasPointerMove" @pointerup="endPointerActions" @wheel.prevent="onCanvasWheel">
+    <div v-else class="canvas-area" ref="canvasRef" @pointerdown="onCanvasPointerDown" @pointermove="onCanvasPointerMove" @pointerup="endPointerActions" @wheel.prevent="onCanvasWheel">
       <div class="canvas-content" :style="canvasTransformStyle">
         <svg class="canvas-svg" :width="canvasWidth" :height="canvasHeight">
           <defs>
@@ -78,13 +87,15 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { io } from 'socket.io-client';
 import { useModal } from '../../composables/useModal.js';
 import { useProyectos, loadProjectDetails, updateProjectTables, updateTablePosition } from '../../composables/useProyectos';
 import FormularioTablaHeader from '../proyectos/FormularioTablaHeader.vue';
 import FormularioTablaBody from '../proyectos/FormularioTablaBody.vue';
 import FormularioTablaFooter from '../proyectos/FormularioTablaFooter.vue';
 
+const socket = io(import.meta.env.VITE_API_URL);
 const canvasRef = ref(null);
 const { selectedProject, projectData, loadingProject } = useProyectos();
 const { mostrarModal } = useModal();
@@ -92,6 +103,9 @@ const tables = computed(() => Array.isArray(projectData.value?.tablas) ? project
 const currentProjectName = computed(() => projectData.value?.nombre ?? '');
 const nodes = ref([]);
 const draggingNode = ref(null);
+const ctrlPanning = ref(false);
+const panStart = reactive({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
+const pendingScrollRestore = reactive({ x: null, y: null });
 const canvasRect = reactive({ left: 0, top: 0, width: 0, height: 0 });
 const zoom = ref(1);
 const minZoom = 0.5;
@@ -104,6 +118,8 @@ const mensajeErrorTabla = ref('');
 const canvasTransformStyle = computed(() => ({
   transform: `scale(${zoom.value})`,
   transformOrigin: '0 0',
+  width: `${canvasWidth.value}px`,
+  height: `${canvasHeight.value}px`,
 }));
 
 const canvasWidth = computed(() => {
@@ -371,22 +387,43 @@ function connectionPath(connection) {
 
 function startNodeDrag(node, event) {
   if (event.target.closest('button')) return;
-  const pointerX = (event.clientX - canvasRect.left) / zoom.value;
-  const pointerY = (event.clientY - canvasRect.top) / zoom.value;
+  const scrollLeft = canvasRef.value?.scrollLeft || 0;
+  const scrollTop = canvasRef.value?.scrollTop || 0;
+  const pointerX = (event.clientX - canvasRect.left + scrollLeft) / zoom.value;
+  const pointerY = (event.clientY - canvasRect.top + scrollTop) / zoom.value;
   const offsetX = pointerX - node.x;
   const offsetY = pointerY - node.y;
   draggingNode.value = { node, offsetX, offsetY };
   event.currentTarget.setPointerCapture(event.pointerId);
 }
 
+function onCanvasPointerDown(event) {
+  if (event.ctrlKey && !event.target.closest('.node-card, .toolbar-overlay')) {
+    event.preventDefault();
+    ctrlPanning.value = true;
+    panStart.x = event.clientX;
+    panStart.y = event.clientY;
+    panStart.scrollLeft = canvasRef.value?.scrollLeft || 0;
+    panStart.scrollTop = canvasRef.value?.scrollTop || 0;
+    return;
+  }
+}
+
+function scrollCanvas(dx, dy) {
+  if (!canvasRef.value) return;
+  canvasRef.value.scrollBy({ left: dx, top: dy, behavior: 'smooth' });
+}
+
 function onCanvasPointerMove(event) {
   updateCanvasRect();
   if (!draggingNode.value) return;
-  const pointerX = (event.clientX - canvasRect.left) / zoom.value;
-  const pointerY = (event.clientY - canvasRect.top) / zoom.value;
+  const scrollLeft = canvasRef.value?.scrollLeft || 0;
+  const scrollTop = canvasRef.value?.scrollTop || 0;
+  const pointerX = (event.clientX - canvasRect.left + scrollLeft) / zoom.value;
+  const pointerY = (event.clientY - canvasRect.top + scrollTop) / zoom.value;
   const { node, offsetX, offsetY } = draggingNode.value;
-  node.x = Math.max(0, Math.min(canvasRect.width / zoom.value - 220, pointerX - offsetX));
-  node.y = Math.max(0, Math.min(canvasRect.height / zoom.value - 120, pointerY - offsetY));
+  node.x = Math.max(0, Math.min(canvasWidth.value - 220, pointerX - offsetX));
+  node.y = Math.max(0, Math.min(canvasHeight.value - 120, pointerY - offsetY));
 }
 
 async function endPointerActions() {
@@ -429,6 +466,89 @@ function onCanvasWheel(event) {
   zoom.value = Math.min(maxZoom, Math.max(minZoom, zoom.value + delta));
 }
 
+function fitView() {
+  if (!nodes.value.length || !canvasRef.value) return;
+  const padding = 60;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const node of nodes.value) {
+    minX = Math.min(minX, node.x);
+    minY = Math.min(minY, node.y);
+    maxX = Math.max(maxX, node.x + NODE_WIDTH);
+    maxY = Math.max(maxY, node.y + NODE_HEIGHT);
+  }
+  const contentWidth = maxX - minX + padding * 2;
+  const contentHeight = maxY - minY + padding * 2;
+  const viewWidth = canvasRect.width;
+  const viewHeight = canvasRect.height;
+  if (!contentWidth || !contentHeight || !viewWidth || !viewHeight) return;
+  const scaleX = viewWidth / contentWidth;
+  const scaleY = viewHeight / contentHeight;
+  const newZoom = Math.min(maxZoom, Math.max(minZoom, Math.min(scaleX, scaleY)));
+  zoom.value = newZoom;
+  const scrollLeft = (minX - padding) * newZoom - (viewWidth - contentWidth * newZoom) / 2;
+  const scrollTop = (minY - padding) * newZoom - (viewHeight - contentHeight * newZoom) / 2;
+  nextTick(() => {
+    if (canvasRef.value) {
+      canvasRef.value.scrollLeft = Math.max(0, scrollLeft);
+      canvasRef.value.scrollTop = Math.max(0, scrollTop);
+    }
+  });
+}
+
+function persistZoom() {
+  socket.emit('config_general:update', { clave: 'v_basededatos_zoom', valor: String(zoom.value) }, (resp) => {
+    if (!resp.ok) console.error(resp.error || 'Error guardando zoom de base de datos');
+  });
+}
+
+function ensureConfigGeneralKey(clave, valor) {
+  socket.emit('config_general:update', { clave, valor }, (resp) => {
+    if (!resp.ok) {
+      console.error(resp.error || `Error creando clave config_general ${clave}`);
+    }
+  });
+}
+
+function loadCanvasConfig() {
+  socket.emit('config_general:list', null, (resp) => {
+    if (!resp.ok) return;
+    const values = Object.fromEntries((resp.data || []).map((item) => [item.clave, item.valor]));
+    const zoomValue = Number(values.v_basededatos_zoom);
+    if (Number.isFinite(zoomValue)) {
+      zoom.value = Math.min(maxZoom, Math.max(minZoom, zoomValue));
+    }
+    const scrollX = Number(values.v_basededatos_scroll_x);
+    const scrollY = Number(values.v_basededatos_scroll_y);
+    if (Number.isFinite(scrollX)) pendingScrollRestore.x = scrollX;
+    if (Number.isFinite(scrollY)) pendingScrollRestore.y = scrollY;
+    if (values.v_basededatos_zoom === undefined) {
+      ensureConfigGeneralKey('v_basededatos_zoom', String(zoom.value));
+    }
+    if (values.v_basededatos_scroll_x === undefined) {
+      ensureConfigGeneralKey('v_basededatos_scroll_x', '0');
+    }
+    if (values.v_basededatos_scroll_y === undefined) {
+      ensureConfigGeneralKey('v_basededatos_scroll_y', '0');
+    }
+  });
+}
+
+let scrollTimeout = null;
+function onCanvasScroll() {
+  if (scrollTimeout) clearTimeout(scrollTimeout);
+  scrollTimeout = setTimeout(() => {
+    if (!canvasRef.value) return;
+    const x = canvasRef.value.scrollLeft;
+    const y = canvasRef.value.scrollTop;
+    socket.emit('config_general:update', { clave: 'v_basededatos_scroll_x', valor: String(Math.round(x)) }, (resp) => {
+      if (!resp.ok) console.error(resp.error || 'Error guardando scroll X de base de datos');
+    });
+    socket.emit('config_general:update', { clave: 'v_basededatos_scroll_y', valor: String(Math.round(y)) }, (resp) => {
+      if (!resp.ok) console.error(resp.error || 'Error guardando scroll Y de base de datos');
+    });
+  }, 300);
+}
+
 watch(selectedProject, () => {
   loadTables();
 });
@@ -437,14 +557,57 @@ watch(tables, () => {
   syncNodesWithTables();
 });
 
+watch(zoom, () => {
+  persistZoom();
+});
+
+watch(nodes, (newNodes) => {
+  if (newNodes.length > 0 && pendingScrollRestore.x !== null) {
+    nextTick(() => {
+      if (canvasRef.value) {
+        canvasRef.value.scrollLeft = pendingScrollRestore.x;
+        canvasRef.value.scrollTop = pendingScrollRestore.y;
+      }
+    });
+  }
+});
+
+function onGlobalPointerMove(event) {
+  if (ctrlPanning.value) {
+    const dx = event.clientX - panStart.x;
+    const dy = event.clientY - panStart.y;
+    if (canvasRef.value) {
+      canvasRef.value.scrollLeft = panStart.scrollLeft - dx;
+      canvasRef.value.scrollTop = panStart.scrollTop - dy;
+    }
+    return;
+  }
+}
+
+function onGlobalPointerUp() {
+  ctrlPanning.value = false;
+}
+
 onMounted(() => {
   updateCanvasRect();
   loadTables();
+  loadCanvasConfig();
   window.addEventListener('resize', updateCanvasRect);
+  window.addEventListener('pointermove', onGlobalPointerMove);
+  window.addEventListener('pointerup', onGlobalPointerUp);
+  if (canvasRef.value) {
+    canvasRef.value.addEventListener('scroll', onCanvasScroll);
+  }
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', updateCanvasRect);
+  window.removeEventListener('pointermove', onGlobalPointerMove);
+  window.removeEventListener('pointerup', onGlobalPointerUp);
+  socket.disconnect();
+  if (canvasRef.value) {
+    canvasRef.value.removeEventListener('scroll', onCanvasScroll);
+  }
 });
 </script>
 
@@ -465,6 +628,33 @@ onUnmounted(() => {
 .toolbar-actions {
   display: flex;
   gap: 0.75rem;
+  align-items: center;
+}
+
+.zoom-controls {
+  display: flex;
+  gap: 0.15rem;
+  border: 1px solid #d8e2ef;
+  border-radius: 0.6rem;
+  padding: 0.2rem;
+}
+
+.zoom-controls .btn {
+  padding: 0.35rem 0.55rem;
+}
+
+.scroll-controls {
+  display: flex;
+  gap: 0.15rem;
+  border: 1px solid #d8e2ef;
+  border-radius: 0.6rem;
+  padding: 0.2rem;
+}
+
+.scroll-controls .btn {
+  padding: 0.25rem 0.45rem;
+  font-size: 0.85rem;
+  line-height: 1;
 }
 
 .btn {
@@ -503,7 +693,7 @@ onUnmounted(() => {
   min-height: 520px;
   border: 1px solid #d8e2ef;
   border-radius: 1rem;
-  overflow: hidden;
+  overflow: auto;
   background: #f8fbff;
 }
 

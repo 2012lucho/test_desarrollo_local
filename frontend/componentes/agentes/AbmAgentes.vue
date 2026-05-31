@@ -6,9 +6,9 @@
       class="canvas-area"
       :class="{ 'canvas-disabled': !hasSelectedFlujo }"
       ref="canvasRef"
+      @pointerdown="onCanvasPointerDown"
       @pointermove="onCanvasPointerMove"
       @pointerup="endPointerActions"
-      @click.self="cancelConnection"
       @wheel.prevent="onCanvasWheel"
     >
       <div v-if="toolbar.visible" class="toolbar-overlay" :style="toolbarStyle" @pointerdown.stop="handleToolbarPointerDown($event)">
@@ -33,9 +33,18 @@
                 <rect x="4" y="4" width="8" height="8" rx="1" ry="1" />
               </svg>
             </button>
-            <button class="btn" :disabled="!hasSelectedFlujo" @click="zoomOut" type="button">- Alejar</button>
-            <button class="btn" :disabled="!hasSelectedFlujo" @click="zoomReset" type="button">100%</button>
-            <button class="btn" :disabled="!hasSelectedFlujo" @click="zoomIn" type="button">+ Acercar</button>
+            <div class="zoom-controls">
+              <button class="btn" :disabled="!hasSelectedFlujo" @click="zoomOut" type="button">-</button>
+              <button class="btn" :disabled="!hasSelectedFlujo" @click="zoomReset" type="button">100%</button>
+              <button class="btn" :disabled="!hasSelectedFlujo" @click="zoomIn" type="button">+</button>
+            </div>
+            <button class="btn" :disabled="!hasSelectedFlujo || !nodes.length" @click="fitView" type="button">⟷ Ajustar vista</button>
+            <div class="scroll-controls">
+              <button class="btn" :disabled="!hasSelectedFlujo" @click="scrollCanvas(0, -60)" type="button" title="Arriba">↑</button>
+              <button class="btn" :disabled="!hasSelectedFlujo" @click="scrollCanvas(0, 60)" type="button" title="Abajo">↓</button>
+              <button class="btn" :disabled="!hasSelectedFlujo" @click="scrollCanvas(-60, 0)" type="button" title="Izquierda">←</button>
+              <button class="btn" :disabled="!hasSelectedFlujo" @click="scrollCanvas(60, 0)" type="button" title="Derecha">→</button>
+            </div>
           </div>
           <div class="toolbar-status">
             <input class="form-control toolbar-zoom-input" type="text" readonly :value="Math.round(zoom * 100) + '%'"></input>
@@ -172,7 +181,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { io } from 'socket.io-client';
 import { useModal } from '../../composables/useModal.js';
 import FormularioAgenteHeader from './FormularioAgenteHeader.vue';
@@ -244,6 +253,9 @@ const chatMessages = ref([]);
 const currentChatRequestId = ref(null);
 const currentAssistantMessageIndex = ref(null);
 const draggingNode = ref(null);
+const ctrlPanning = ref(false);
+const panStart = reactive({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
+const pendingScrollRestore = reactive({ x: null, y: null });
 const canvasRect = reactive({ left: 0, top: 0, width: 0, height: 0 });
 const pointerPos = reactive({ x: 0, y: 0 });
 const zoom = ref(1);
@@ -310,6 +322,11 @@ function loadToolbarPosition() {
       zoom.value = Math.min(maxZoom, Math.max(minZoom, zoomValue));
     }
 
+    const scrollX = Number(values.v_agentes_scroll_x);
+    const scrollY = Number(values.v_agentes_scroll_y);
+    if (Number.isFinite(scrollX)) pendingScrollRestore.x = scrollX;
+    if (Number.isFinite(scrollY)) pendingScrollRestore.y = scrollY;
+
     if (values.v_agentes_barra1_px === undefined) {
       ensureConfigGeneralKey('v_agentes_barra1_px', String(toolbar.x));
     }
@@ -321,6 +338,12 @@ function loadToolbarPosition() {
     }
     if (values.v_agentes_zoom === undefined) {
       ensureConfigGeneralKey('v_agentes_zoom', String(zoom.value));
+    }
+    if (values.v_agentes_scroll_x === undefined) {
+      ensureConfigGeneralKey('v_agentes_scroll_x', '0');
+    }
+    if (values.v_agentes_scroll_y === undefined) {
+      ensureConfigGeneralKey('v_agentes_scroll_y', '0');
     }
   });
 }
@@ -500,6 +523,17 @@ watch(selectedFlujo, () => {
 
 watch(zoom, () => {
   persistZoom();
+});
+
+watch(nodes, (newNodes) => {
+  if (newNodes.length > 0 && pendingScrollRestore.x !== null) {
+    nextTick(() => {
+      if (canvasRef.value) {
+        canvasRef.value.scrollLeft = pendingScrollRestore.x;
+        canvasRef.value.scrollTop = pendingScrollRestore.y;
+      }
+    });
+  }
 });
 
 function abrirFormularioAgente(agente = null) {
@@ -981,6 +1015,15 @@ function startChatDrag(event) {
 }
 
 function onGlobalPointerMove(event) {
+  if (ctrlPanning.value) {
+    const dx = event.clientX - panStart.x;
+    const dy = event.clientY - panStart.y;
+    if (canvasRef.value) {
+      canvasRef.value.scrollLeft = panStart.scrollLeft - dx;
+      canvasRef.value.scrollTop = panStart.scrollTop - dy;
+    }
+    return;
+  }
   if (chatWindow.dragging) {
     chatWindow.x = Math.min(Math.max(10, event.clientX - chatWindow.offsetX), window.innerWidth - chatWindow.width - 10);
     chatWindow.y = Math.min(Math.max(10, event.clientY - chatWindow.offsetY), window.innerHeight - chatWindow.height - 10);
@@ -1001,6 +1044,7 @@ function onGlobalPointerMove(event) {
 }
 
 function onGlobalPointerUp() {
+  ctrlPanning.value = false;
   if (chatWindow.dragging) {
     chatWindow.dragging = false;
     persistChatWindowConfig();
@@ -1219,6 +1263,24 @@ function cancelConnection() {
   connectionStart.value = null;
 }
 
+function onCanvasPointerDown(event) {
+  if (event.ctrlKey && !event.target.closest('.node-card, .toolbar-overlay')) {
+    event.preventDefault();
+    ctrlPanning.value = true;
+    panStart.x = event.clientX;
+    panStart.y = event.clientY;
+    panStart.scrollLeft = canvasRef.value?.scrollLeft || 0;
+    panStart.scrollTop = canvasRef.value?.scrollTop || 0;
+    return;
+  }
+  cancelConnection();
+}
+
+function scrollCanvas(dx, dy) {
+  if (!canvasRef.value) return;
+  canvasRef.value.scrollBy({ left: dx, top: dy, behavior: 'smooth' });
+}
+
 function zoomIn() {
   zoom.value = Math.min(maxZoom, zoom.value + zoomStep);
 }
@@ -1234,6 +1296,53 @@ function zoomReset() {
 function onCanvasWheel(event) {
   const delta = event.deltaY > 0 ? -zoomStep : zoomStep;
   zoom.value = Math.min(maxZoom, Math.max(minZoom, zoom.value + delta));
+}
+
+function fitView() {
+  if (!nodes.value.length || !canvasRef.value) return;
+  const padding = 60;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const node of nodes.value) {
+    minX = Math.min(minX, node.x);
+    minY = Math.min(minY, node.y);
+    maxX = Math.max(maxX, node.x + NODE_WIDTH);
+    maxY = Math.max(maxY, node.y + NODE_HEIGHT);
+  }
+  const contentWidth = maxX - minX + padding * 2;
+  const contentHeight = maxY - minY + padding * 2;
+  const viewWidth = canvasRect.width;
+  const viewHeight = canvasRect.height;
+  if (!contentWidth || !contentHeight || !viewWidth || !viewHeight) return;
+  const scaleX = viewWidth / contentWidth;
+  const scaleY = viewHeight / contentHeight;
+  const newZoom = Math.min(maxZoom, Math.max(minZoom, Math.min(scaleX, scaleY)));
+  zoom.value = newZoom;
+  const scrollLeft = (minX - padding) * newZoom - (viewWidth - contentWidth * newZoom) / 2;
+  const scrollTop = (minY - padding) * newZoom - (viewHeight - contentHeight * newZoom) / 2;
+  nextTick(() => {
+    if (canvasRef.value) {
+      canvasRef.value.scrollLeft = Math.max(0, scrollLeft);
+      canvasRef.value.scrollTop = Math.max(0, scrollTop);
+    }
+  });
+}
+
+function persistCanvasScroll() {
+  if (!canvasRef.value) return;
+  const x = canvasRef.value.scrollLeft;
+  const y = canvasRef.value.scrollTop;
+  socket.emit('config_general:update', { clave: 'v_agentes_scroll_x', valor: String(Math.round(x)) }, (resp) => {
+    if (!resp.ok) console.error(resp.error || 'Error guardando scroll X de agente');
+  });
+  socket.emit('config_general:update', { clave: 'v_agentes_scroll_y', valor: String(Math.round(y)) }, (resp) => {
+    if (!resp.ok) console.error(resp.error || 'Error guardando scroll Y de agente');
+  });
+}
+
+let scrollTimeout = null;
+function onCanvasScroll() {
+  if (scrollTimeout) clearTimeout(scrollTimeout);
+  scrollTimeout = setTimeout(persistCanvasScroll, 300);
 }
 
 function getConnectionOutputIndex(connection) {
@@ -1333,6 +1442,9 @@ onMounted(() => {
   socket.on('agentes_nodo_flujo_ejecucion:connection_taken', handleConnectionTaken);
   window.addEventListener('pointermove', onGlobalPointerMove);
   window.addEventListener('pointerup', onGlobalPointerUp);
+  if (canvasRef.value) {
+    canvasRef.value.addEventListener('scroll', onCanvasScroll);
+  }
 });
 
 onUnmounted(() => {
@@ -1348,6 +1460,9 @@ onUnmounted(() => {
   socket.off('agentes_nodo_flujo_ejecucion:node_finished', handleNodeExecutionFinished);
   socket.off('agentes_nodo_flujo_ejecucion:connection_taken', handleConnectionTaken);
   socket.disconnect();
+  if (canvasRef.value) {
+    canvasRef.value.removeEventListener('scroll', onCanvasScroll);
+  }
 });
 </script>
 
@@ -1427,6 +1542,32 @@ onUnmounted(() => {
 .toolbar-buttons .btn {
   flex: 0 0 auto;
   width: auto;
+}
+
+.zoom-controls {
+  display: flex;
+  gap: 0.15rem;
+  border: 1px solid #d8e2ef;
+  border-radius: 0.6rem;
+  padding: 0.2rem;
+}
+
+.zoom-controls .btn {
+  padding: 0.35rem 0.55rem;
+}
+
+.scroll-controls {
+  display: flex;
+  gap: 0.15rem;
+  border: 1px solid #d8e2ef;
+  border-radius: 0.6rem;
+  padding: 0.2rem;
+}
+
+.scroll-controls .btn {
+  padding: 0.25rem 0.45rem;
+  font-size: 0.85rem;
+  line-height: 1;
 }
 
 .flujo-selector {
